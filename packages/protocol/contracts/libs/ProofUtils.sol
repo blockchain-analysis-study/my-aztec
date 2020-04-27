@@ -26,8 +26,26 @@ library ProofUtils {
      * @param proof The compressed uint24 number.
      * @return A tuple (uint8, uint8, uint8) representing the epoch, category and proofId.
      */
+    //
+    // 我们将三个uint8数字压缩为一个uint24以节省gas.
+    // 如果类别不是[1、2、3、4]之一，则返回.
+    // 
+    // 入参: 
+    // proof: 压缩的uint24数
+    //
+    // 返参:
+    // 表示epoch, category and proofId的元组（uint8，uint8，uint8）
     function getProofComponents(uint24 proof) internal pure returns (uint8 epoch, uint8 category, uint8 id) {
         assembly {
+            // 从 proof 中解出, proofId、category、epoch
+            //
+            // 255 = 0xff 代表 32 bit 全部是 1
+            //
+            // proofId = proof & oxff
+            // category = proof/0x100 & 0xff
+            // epoch = proof/0x10000 & 0xff
+            // 
+            // 看看 ACE.sol 的 getValidatorAddress() 函数 和 IAZTEC.sol 的说明
             id := and(proof, 0xff)
             category := and(div(proof, 0x100), 0xff)
             epoch := and(div(proof, 0x10000), 0xff)

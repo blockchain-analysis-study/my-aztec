@@ -11,6 +11,13 @@ pragma solidity >=0.5.0 <0.6.0;
  * total supply does not meet the extracted value
  * (due to having called confidentialMint())
  */
+ //
+ // 具有铸造功能的ERC20接口
+ //
+ // 源自OpenZeppelin (https://github.com/OpenZeppelin/openzeppelin-solidity/blob/master/contracts/token/ERC20/IERC20.sol), 
+ // 并添加了 mint()函数。 mint function是必需的，
+ // 因为 ZkAssetMintable 可能需要能够从链接的 note注册表 token 中铸造(mint). 
+ // 当总供应量不满足提取值时，就会产生这种需求 (由于调用了 confidentialMint())
 interface IERC20Mintable {
 
     function transfer(address to, uint256 value) external returns (bool);

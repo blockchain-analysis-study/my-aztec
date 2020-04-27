@@ -33,6 +33,8 @@ import "../../Proxies/AdminUpgradeabilityProxy.sol";
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
+// 票据 note 注册表 管理合约 
+// 继承 
 contract NoteRegistryManager is IAZTEC, Ownable {
     using SafeMath for uint256;
     using VersioningUtils for uint24;
@@ -63,28 +65,47 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     );
 
     // Every user has their own note registry
-
+    //
+    // =================================================
+    // TODO 这个东西至关重要
+    // 
+    // 每个用户都有自己的票据note注册表
     struct NoteRegistry {
+        // 这是一个 票决注册表行为 合约类型
         NoteRegistryBehaviour behaviour;
+        // 这是一个 具备 mint 功能的 ERC20 合约类型
         IERC20Mintable linkedToken;
+        // 
         uint24 latestFactory;
+        // note 总额?
         uint256 totalSupply;
+        // note 总额的 补充?
         uint256 totalSupplemented;
+
+        // 
         mapping(address => mapping(bytes32 => uint256)) publicApprovals;
     }
 
+    // 定义 一个装载  该发起者的 一个 加密票据note 的注册列表结构
     mapping(address => NoteRegistry) public registries;
 
     /**
     * @dev index of available factories, using very similar structure to proof registry in ACE.sol.
-    * The structure of the index is (epoch, cryptoSystem, assetType).
+    * The structure of the index is ().
     */
+    // 可用工厂的索引，使用非常相似的结构来证明ACE.sol中的注册表
+    // 索引的结构是 (epoch, cryptoSystem, assetType)
+    //
+    // 0x100 == 256  0x10000 == 65536 == 256*256
     address[0x100][0x100][0x10000] factories;
 
 
     uint8 public defaultRegistryEpoch = 1;
     uint8 public defaultCryptoSystem = 1;
 
+
+    // 这里面记录的是, 做过 校验的proofHash的标识
+    // ACE 的 validateProof()函数 和 clearProofByHashes()函数 有用
     mapping(bytes32 => bool) public validatedProofs;
 
     /**

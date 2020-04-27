@@ -18,18 +18,21 @@ pragma solidity >=0.5.0 <0.6.0;
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
 contract IAZTEC {
+
+    // 定义了 proof种类的 枚举类型
     enum ProofCategory {
-        NULL,
-        BALANCED,
-        MINT,
-        BURN,
-        UTILITY
+        NULL,// 一个 空证明 ?
+        BALANCED, //  
+        MINT, // token 转成 加密币
+        BURN, // 加密币 转成 token
+        UTILITY // 
     }
 
+    // 定义了 票据note状态的 枚举类型
     enum NoteStatus {
-        DOES_NOT_EXIST,
-        UNSPENT,
-        SPENT
+        DOES_NOT_EXIST, // 票据不存在
+        UNSPENT, // 票据未花费
+        SPENT // 票据已花费
     }
     // proofEpoch = 1 | proofCategory = 1 | proofId = 1
     // 1 * 256**(2) + 1 * 256**(1) ++ 1 * 256**(0)

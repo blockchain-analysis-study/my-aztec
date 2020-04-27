@@ -27,6 +27,8 @@ import "../../../interfaces/ProxyAdmin.sol";
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
+ //
+ //
 contract NoteRegistryFactory is IAZTEC, Ownable  {
     event NoteRegistryDeployed(address behaviourContract);
 
@@ -36,6 +38,7 @@ contract NoteRegistryFactory is IAZTEC, Ownable  {
 
     function deployNewBehaviourInstance() public returns (address);
 
+    // 
     function handoverBehaviour(address _proxy, address _newImplementation, address _newProxyAdmin) public onlyOwner {
         require(ProxyAdmin(_proxy).admin() == address(this), "this is not the admin of the proxy");
         ProxyAdmin(_proxy).upgradeTo(_newImplementation);

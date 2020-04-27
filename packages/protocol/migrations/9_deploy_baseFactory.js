@@ -15,6 +15,8 @@ module.exports = (deployer) => {
 
     /* eslint-disable no-new */
     new Promise(() => {
+
+        // 不是 base Factory
         return deployer.deploy(BaseFactory, ACE.address).then(async ({ address }) => {
             const ace = await ACE.at(ACE.address);
 

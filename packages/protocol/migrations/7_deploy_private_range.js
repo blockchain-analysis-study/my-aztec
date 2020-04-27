@@ -8,6 +8,8 @@ const PrivateRangeInterface = artifacts.require('./PrivateRangeInterface.sol');
 PrivateRange.abi = PrivateRangeInterface.abi;
 
 module.exports = (deployer) => {
+
+    // 第七步, 部署
     return deployer.deploy(PrivateRange).then(async ({ address: privateRangeAddress }) => {
         const ace = await ACE.at(ACE.address);
         await ace.setProof(proofs.PRIVATE_RANGE_PROOF, privateRangeAddress);

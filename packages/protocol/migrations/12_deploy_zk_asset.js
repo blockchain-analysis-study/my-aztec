@@ -19,8 +19,11 @@ module.exports = (deployer, network) => {
         if (network === 'mainnet') {
             return Promise.resolve({ address: addresses.DAI_ADDRESS });
         }
+
+        // 先部署一个 ERC20
         return deployer.deploy(ERC20Mintable).then(({ address: erc20Address }) => {
             const aceAddress = ACE.address;
+            // 再部署一个 ZK 证明合约
             return deployer.deploy(ZkAsset, aceAddress, erc20Address, ERC20_SCALING_FACTOR);
         });
     });

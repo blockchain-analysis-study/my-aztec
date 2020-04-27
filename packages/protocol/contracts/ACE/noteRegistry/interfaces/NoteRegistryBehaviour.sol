@@ -26,14 +26,17 @@ import "../../../interfaces/IAZTEC.sol";
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
+// 定义 票决note注册表行为 合约
 contract NoteRegistryBehaviour is Ownable, IAZTEC {
     using SafeMath for uint256;
 
+    // 是否是 活动的行为
     bool public isActiveBehaviour;
     bool public initialised;
     address public dataLocation;
 
     constructor () Ownable() public {
+        // 初始化时, 是激活的
         isActiveBehaviour = true;
     }
 
@@ -86,6 +89,8 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         *
         * @param _proofOutputs - the output of the mint validator
     */
+    // 通过成功验证的 mint 证明，实施所需的状态修改
+    // _proofOutputs: mint 验证器的 output
     function mint(bytes memory _proofOutputs) public;
 
     /**
