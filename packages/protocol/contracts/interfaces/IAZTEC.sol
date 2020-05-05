@@ -22,7 +22,7 @@ contract IAZTEC {
     // 定义了 proof种类的 枚举类型
     enum ProofCategory {
         NULL,// 一个 空证明 ?
-        BALANCED, //  
+        BALANCED, // 满足平衡关系的证明, ACE.validateProof() 中用到
         MINT, // token 转成 加密币
         BURN, // 加密币 转成 token
         UTILITY // 

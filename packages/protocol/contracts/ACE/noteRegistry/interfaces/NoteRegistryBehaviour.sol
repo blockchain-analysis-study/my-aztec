@@ -27,12 +27,18 @@ import "../../../interfaces/IAZTEC.sol";
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
 // 定义 票决note注册表行为 合约
+//
+// TODO 主要是, 定义存储合约的接口
 contract NoteRegistryBehaviour is Ownable, IAZTEC {
     using SafeMath for uint256;
 
     // 是否是 活动的行为
     bool public isActiveBehaviour;
+
+    // 票据注册表是否已经初始化 标识
     bool public initialised;
+
+    // 属于谁发起的 note注册, 存 msg.sender
     address public dataLocation;
 
     constructor () Ownable() public {
@@ -49,6 +55,11 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         * @param _canConvert - whether the noteRegistry can transfer value from private to public
             representation and vice versa
     */
+    // 初始化noteRegistry的数据。 应该只调用一次
+    // _newOwner: 初始化调用将 交易所有权转的地址, (权限控制的 某个以太坊地址)
+    // _scalingFactor: 定义 一个 AZTEC note 值 兑换多少令牌数量 的比例 
+    // _canAdjustSupply: noteRegistry 是否可以使用 mint 和 burn
+    // _canConvert: noteRegistry 是否可以将价值从 private 转移到 public，反之亦然 
     function initialise(
         address _newOwner,
         uint256 _scalingFactor,
@@ -69,6 +80,13 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         * @return canConvert - the boolean whih defines if the noteRegistry can make use of
             minting and burning methods.
     */
+    // 获取注册表数据
+    //
+    // scalingFactor: 定义 一个 AZTEC note 值 兑换多少令牌数量 的比例 
+    // confidentialTotalMinted: AZTEC票据的哈希值代表 mint 的总量
+    // confidentialTotalBurned: AZTEC票据的哈希值代表 burn 的总量 
+    // canConvert: 布尔值定义了 noteRegistry 是否可以在 public 和 private 之间转换
+    // canAdjustSupply: 布尔值定义了 noteRegistry 是否可以使用 mint 和 burn 方法
     function getRegistry() public view returns (
         uint256 scalingFactor,
         bytes32 confidentialTotalMinted,
@@ -82,6 +100,8 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         *
         * @param _proofOutputs - the output of the burn validator
     */
+    // 在成功验证烧伤证明后执行所需的状态修改
+    // _proofOutputs: burn 验证器的输出
     function burn(bytes memory _proofOutputs) public;
 
     /**
@@ -107,6 +127,10 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         *   away scaling factors in first version of AZTEC
         * @return publicValue - the kPublic value to be used in zero-knowledge proofs
     */
+    // 根据已成功 验证的输出 (_proofOutputs) ，执行所需的状态修改.
+    // 行为合同使用 _proofId 参数来（如果需要）限制 note 注册表支持的 proof版本，
+    // 例如，在proofOutputs模式发生更改时很有用.
+    //
     function updateNoteRegistry(
         uint24 _proof,
         bytes memory _proofOutput
@@ -121,6 +145,8 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         *
         * @param _newTotalNoteHash - the hash of the note representing the total minted value for an asset.
     */
+    // 将secretTotalMinted设置为新值。 该值必须是 note 的Hash
+    // _newTotalNoteHash: 表示资产总 铸造 价值的 note Hash
     function setConfidentialTotalMinted(bytes32 _newTotalNoteHash) internal returns (bytes32);
 
     /**
@@ -128,6 +154,8 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         *
         * @param _newTotalNoteHash - the hash of the note representing the total burned value for an asset.
     */
+    // 将secretTotalBurned设置为新值。 该值必须是 note 的Hash
+    // _newTotalNoteHash: 表示资产总 燃烧 价值的 note Hash
     function setConfidentialTotalBurned(bytes32 _newTotalNoteHash) internal returns (bytes32);
 
     /**
@@ -155,6 +183,8 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         *
         * @param _inputNotes - a bytes array containing notes
     */
+    // 给定字节数组的内部函数更新noteRegistry
+    // _inputNotes: 一组 UTXO的 input 的 note
     function updateInputNotes(bytes memory _inputNotes) internal;
 
     /**
@@ -162,6 +192,8 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         *
         * @param _outputNotes - a bytes array containing notes
     */
+    // 给定字节数组的内部函数更新noteRegistry
+    // _outputNotes: 一组 UTXO的 output 的 note
     function updateOutputNotes(bytes memory _outputNotes) internal;
 
     /**
@@ -170,6 +202,9 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         * @param _noteHash - the noteHash
         * @param _noteOwner - the address of the owner of the note
     */
+    // 内部函数创建一个新的笔记对象
+    // _noteHash: 一个 note 的Hash
+    // _noteOwner: 该 note 对应的 owner (一个 以太坊地址)
     function createNote(bytes32 _noteHash, address _noteOwner) internal;
 
     /**
@@ -178,6 +213,9 @@ contract NoteRegistryBehaviour is Ownable, IAZTEC {
         * @param _noteHash - the noteHash
         * @param _noteOwner - the address of the owner of the note
     */
+    // 内部功能删除 note 对象
+    // _noteHash: 一个 note 的Hash
+    // _noteOwner: 该 note 对应的 owner (一个 以太坊地址)
     function deleteNote(bytes32 _noteHash, address _noteOwner) internal;
 
     /**

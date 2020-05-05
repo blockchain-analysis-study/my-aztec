@@ -21,9 +21,12 @@ import "./BehaviourAdjustable201907.sol";
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
+ // 这是 Adjust 合约工厂合约实例
 contract FactoryAdjustable201907 is NoteRegistryFactory {
+    // 将 _aceAddress 传递给 NoteRegistryFactory合约构造器
     constructor(address _aceAddress) public NoteRegistryFactory(_aceAddress) {}
 
+    // 通过当前 工厂, 部署一个 行为合约
     function deployNewBehaviourInstance()
         public
         onlyOwner

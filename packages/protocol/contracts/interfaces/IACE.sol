@@ -63,7 +63,8 @@ contract IACE {
     * @param _canConvert - whether the noteRegistry can transfer value from private to public
         representation and vice versa
     */
-    //
+    // TODO NoteRegisterManager 实现
+    // 
     // 默认的noteRegistry创建方法。 不采用要使用的工厂ID，而是根据默认值和传递的标志生成该ID
     //
     // _linkedTokenAddress: 任何erc20链接令牌的地址 (如果canConvert为true，则不能为0x0)
@@ -166,14 +167,14 @@ m
      // _registryOwner: 有关注册表所有者的地址
      //
      // 返参: 
-     // linkedToken: 链接到NoteRegistry的公共ERC20令牌。 这用于将公共价值传入和传出系统
-     // scalingFactor: 定义一个AZTEC注释代表多少个ERC20令牌
-     // confidentialTotalMinted: keccak256票据的哈希值，代表铸造的总供应量
-     // confidentialTotalBurned: keccak256票据哈希值，代表总消耗量
+     // linkedToken: 链接到NoteRegistry的公共ERC20合约。 这用于将公共价值传入和传出系统
+     // scalingFactor: 定义 一个 AZTEC note 值 兑换多少令牌数量 的比例 
+     // confidentialTotalMinted: AZTEC票据的哈希值代表 mint 的总量
+     // confidentialTotalBurned: AZTEC票据的哈希值代表 burn 的总量 
      // totalSupply: 代表与特定注册表关联的公共令牌的当前总供应量
      // totalSupplemented: total补充
-     // canConvert: 所有者设置的标志，用于确定注册表是否具有公共特权到私有特权，反之亦然
-     // canAdjustSupply: 确定注册表是否具有铸造和刻录特权
+     // canConvert: 布尔值定义了 noteRegistry 是否可以在 public 和 private 之间转换
+     // canAdjustSupply: 布尔值定义了 noteRegistry 是否可以使用 mint 和 burn 方法
     function getRegistry(address _registryOwner) external view returns (
         address linkedToken,
         uint256 scalingFactor,
@@ -299,7 +300,7 @@ m
     * @dev Adds a public approval record to the noteRegistry, for use by ACE when it needs to transfer
         public tokens it holds to an external address. It needs to be associated with the hash of a proof.
     */
-    // 将公共批准记录添加到noteRegistry中，以供ACE在需要将其持有的公共令牌转移到外部地址时使用。 它需要与证明的哈希关联
+    // 将【公共批准记录】添加到noteRegistry中，以供ACE在需要将其持有的公共令牌转移到外部地址时使用。 它需要与证明的哈希关联
     function publicApprove(address _registryOwner, bytes32 _proofHash, uint256 _value) external;
 
 

@@ -27,21 +27,29 @@ import "../../../interfaces/ProxyAdmin.sol";
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
- //
+ // NoteRegistry 的 工厂
  //
 contract NoteRegistryFactory is IAZTEC, Ownable  {
     event NoteRegistryDeployed(address behaviourContract);
 
     constructor(address _aceAddress) public Ownable() {
+        // 这个 address 只是为了设置 交易所有权的
         transferOwnership(_aceAddress);
     }
 
     function deployNewBehaviourInstance() public returns (address);
 
-    // 
+    // 切换行为
+    //
+    // 变更 一个新的admin地址 ： _newProxyAdmin
+    // 变更 一个新的实现合约地址 ：_newImplementation
     function handoverBehaviour(address _proxy, address _newImplementation, address _newProxyAdmin) public onlyOwner {
+        // 先检查下就有的 admin地址, 该方法只有就有的 admin 合约可以调用
         require(ProxyAdmin(_proxy).admin() == address(this), "this is not the admin of the proxy");
+        
+        // 更新相关合约的地址
         ProxyAdmin(_proxy).upgradeTo(_newImplementation);
+        // 将 _newProxyAdmin 替换 _proxy
         ProxyAdmin(_proxy).changeAdmin(_newProxyAdmin);
     }
 }

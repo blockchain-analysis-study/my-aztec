@@ -168,6 +168,9 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
         bytes calldata _proofData,
         address _proofSender
     ) external returns (bytes memory) {
+
+        // 从 各个账户 的note注册表集中 获取当前 msg.sender 对应的note注册表结构
+        // 只是查出来 使用它的某些 状态和函数而已, 所以用 memory
         NoteRegistry memory registry = registries[msg.sender];
         require(address(registry.behaviour) != address(0x0), "note registry does not exist for the given address");
 
@@ -217,6 +220,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     // 按照加密引擎标准格式化的“ bytesproofOutputs”变量
     // 
     // todo: 说白了，这个就是ACE 指派proof合约对数据进行 证明
+    // 只有校验通过的 _proofOutput 才可以进行操作 input 和output 的变更, _proofOutput 包含inputs和outputs
     function validateProof(uint24 _proof, address _sender, bytes calldata) external returns (bytes memory) {
         require(_proof != 0, "expected the proof to be valid");
         // validate that the provided _proof object maps to a corresponding validator and also that
@@ -328,7 +332,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     */
     /**
     验证零知识证明时清除设置的存储变量。
-    *唯一可以从“ validatedProofs”中清除数据的地址是创建证明的地址。
+    *唯一可以从 “ validatedProofs” 中清除数据的地址是创建证明的地址。
     *该功能旨在利用[EIP-1283]（https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1283.md）来降低燃气成本。 由validateProof设置的任何存储变量很可能仅在单个事务期间才需要。
     *例如 验证交换证明并向两个机密资产发送转移指令的分散交易所。
     *此方法允许调用智能合约通过设置`validatedProofs`来收回大部分用气。
@@ -338,7 +342,8 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     function clearProofByHashes(uint24 _proof, bytes32[] calldata _proofHashes) external {
         uint256 length = _proofHashes.length;
         for (uint256 i = 0; i < length; i += 1) {
-
+            
+            // proofHash 其实是 keccak256(_proofOutput) 生成
             // 循环 将存储在 validatedProofs 中的当前  msg.sender 和 proof 生成的 proofHash校验状态全部置为 false
             bytes32 proofHash = _proofHashes[i];
             require(proofHash != bytes32(0x0), "expected no empty proof hash");
@@ -391,6 +396,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     * @param _sender the Ethereum address of the contract issuing the transfer instruction
     * @return a boolean that signifies whether the corresponding AZTEC proof has been validated
     */
+    // TODO 重写了 NoteRegisterManager 的 validateProofByHash()
     //
     // 通过哈希验证先前验证过的AZTEC证明
     // 这使机密资产能够从dApp接收转移指令，该dApp已经验证了满足平衡关系的AZTEC证明。

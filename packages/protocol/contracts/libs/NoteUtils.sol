@@ -84,6 +84,18 @@ library NoteUtils {
     *         if (publicValue > 0), this represents a transfer of tokens from ACE to publicOwner
     *         if (publicValue < 0), this represents a transfer of tokens from publicOwner to ACE
     */
+    // 提取`bytes _proofOutput`对象的组成元素
+    // 
+    // 入参:
+    // _proofOutput: AZTEC证明输出
+    // 
+    // 返参:
+    // inputNotes: 输入AZTEC notes 的 AZTEC-ABI 动态数组
+    // outputNotes: 输出AZTEC notes 的 AZTEC-ABI 动态数组
+    // publicOwner: proof 所涉及的任何 公共令牌 所有者的以太坊地址
+    // publicValue: proof 中涉及的 公共代币数量
+    // 如果 (publicValue > 0), 这代表将 token 从ACE转移到publicOwner (加密世界 到 token世界)
+    // 如果 (publicValue < 0), 这表示将 token 从publicOwner转移到ACE (token世界 到 加密世界)
     function extractProofOutput(bytes memory _proofOutput) internal pure returns (
         bytes memory inputNotes,
         bytes memory outputNotes,
@@ -128,6 +140,15 @@ library NoteUtils {
     * @return noteHash, the hash of the note's public key
     * @return metadata, note-specific metadata (contains public key and any extra data needed by note owner)
     */
+    // 提取AZTEC note 的组成元素
+    // 
+    // 入参: 
+    // _note: 一个 AZTEC note信息
+    // 
+    // 返参: 
+    // owner: note 所有者的以太坊地址
+    // noteHash: note 公钥的Hash
+    // metadata: note 的特定元数据（包含公钥和 note owner 需要的任何其他数据）
     function extractNote(bytes memory _note) internal pure returns (
             address owner,
             bytes32 noteHash,
@@ -135,11 +156,11 @@ library NoteUtils {
     ) {
         assembly {
             // memory map of a note:
-            // 0x00 - 0x20 : byte length of note
-            // 0x20 - 0x40 : note type
-            // 0x40 - 0x60 : owner
-            // 0x60 - 0x80 : noteHash
-            // 0x80 - 0xa0 : start of metadata byte array
+            // 0x00 - 0x20 : byte length of note // note的自身长度为, [0x00 - 0x20) 
+            // 0x20 - 0x40 : note type // note 类型 存放索引为, [0x20 - 0x40)
+            // 0x40 - 0x60 : owner // owner 的存放索引为, [0x40 - 0x60)
+            // 0x60 - 0x80 : noteHash // note的Hash 存放索引为, [0x60 - 0x80)
+            // 0x80 - 0xa0 : start of metadata byte array // 其他 note 的元数据 存放索引为, [0x80 - 0xa0)
             owner := and(
                 mload(add(_note, 0x40)),
                 0xffffffffffffffffffffffffffffffffffffffff
@@ -154,6 +175,7 @@ library NoteUtils {
     * @param _note an AZTEC note
     * @return noteType
     */
+    // 获取 note 类型
     function getNoteType(bytes memory _note) internal pure returns (
         uint256 noteType
     ) {
