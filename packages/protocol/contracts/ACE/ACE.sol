@@ -57,17 +57,17 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     // 包含一个G1组元素和一个G2组元素，
     // 它们是通过AZTEC协议的受信任设置 (trusted setup) 创建的。 
     // ACE支持的所有零知识证明都使用相同的公共参考字符串。
-    bytes32[6] private commonReferenceString;
+    bytes32[6] private commonReferenceString; 
 
     // `validators`contains the addresses of the contracts that validate specific proof types
     // `validators` 包含验证特定proof类型的合约地址
     // 数组的维分别表示, [epoch][category][id] == [256][256][256*256]
-    address[0x100][0x100][0x10000] public validators;
+    address[0x100][0x100][0x10000] public validators; 
 
     // a list of invalidated proof ids, used to blacklist proofs in the case of a vulnerability being discovered
     // 无效proof ID的列表，用于在发现漏洞时将proof列入黑名单
     // 数组的维分别表示, [epoch][category][id] == [256][256][256*256]
-    bool[0x100][0x100][0x10000] public disabledValidators;
+    bool[0x100][0x100][0x10000] public disabledValidators; 
 
     // latest proof epoch accepted by this contract
     // 本合约接受的最新证明 epoch (默认是: 1)
@@ -114,6 +114,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     ) external returns (bytes memory) {
 
         // 根据 调用该合约的 tx 上级发送者 获取对应的
+        // TODO 在 NoteRegistryManager 的 createNoteRegistry() 方法创建的
         NoteRegistry memory registry = registries[msg.sender];
 
         // 断言校验 当前 msg.sender对应的注册表 的行为合约的address 是否非法
@@ -130,12 +131,17 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
         require(category == uint8(ProofCategory.MINT), "this is not a mint proof");
 
         // 根据 证明 和 证明合约 及需要证明的数据, 返回证明结果输出
+        // TODO 生成 包含 铸币时的 inputs和outputs的 proofOutput
+        //      并将 validateProofHash 置为 true 已被后续 更新 note的 inputs 和 outputs 时使用
         bytes memory _proofOutputs = this.validateProof(_proof, _proofSender, _proofData);
 
         // 校验 证明结果输出 是否为空
         require(_proofOutputs.getLength() > 0, "call to validateProof failed");
 
         // 根据 证明输出，和注册表的行为 进行 token 转 加密币
+        // 
+        // TODO 其实 Behaviour201907 中还未实现 mint.
+        // TODO 但是 BehaviourAdjustable201907 实现了, 其继承了 Behaviour201907
         registry.behaviour.mint(_proofOutputs);
         return(_proofOutputs);
     }
@@ -182,6 +188,11 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
         bytes memory _proofOutputs = this.validateProof(_proof, _proofSender, _proofData);
         require(_proofOutputs.getLength() > 0, "call to validateProof failed");
 
+        // TODO 生成 包含 提币时的 inputs和outputs的 proofOutput
+        //      并将 validateProofHash 置为 true 已被后续 更新 note的 inputs 和 outputs 时使用
+        //
+        // TODO 其实 Behaviour201907 中还未实现 burn.
+        // TODO 但是 BehaviourAdjustable201907 实现了, 其继承了 Behaviour201907
         registry.behaviour.burn(_proofOutputs);
         return _proofOutputs;
     }
@@ -255,6 +266,9 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
             // location in calldata of the start of `bytes _proofData` (0x100)
             // `bytes _proofData` 的开头在calldata中的位置（0x100）
             // mstore(start, val), 将val存入已 start 为指针起始点的 memory中
+            //
+            // commonReferenceString_slot 和 bytes32[6] private commonReferenceString; 有关系??
+            //
             mstore(add(memPtr, 0x04), 0x100)   // 将 0x100 存入 memory的 add(memPtr, 0x04) 指针位置
             mstore(add(memPtr, 0x24), _sender) // 将 sender 存入 memory的 add(memPtr, 0x24) 指针位置 
             mstore(add(memPtr, 0x44), sload(commonReferenceString_slot)) // 将statedb 中的 commonReferenceString_slot对应的数据 存入 memory
@@ -282,6 +296,8 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
             // 计算 call 的入参数据的偏移位置 0x104 == 260
             let callSize := add(proofDataSize, 0x104)
 
+            // 发起 static 跨合约调用, 调用 对应的proof 合约 生成 proofOutput (这里面就包含了生成的 inputs 和 outputs) 
+            //
             // 使用静态调用 成功是1, 失败是0
             switch staticcall(gas, validatorAddress, memPtr, callSize, 0x00, 0x00)
             case 0 {
@@ -297,7 +313,16 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
             // 将校样输出存储在内存中
             mstore(0x40, add(memPtr, returndatasize))
             // the first evm word in the memory pointer is the abi encoded location of the actual returned data
+            //
+            // =================================================== 
+            // ===================== 超级重要 =====================
+            //
             // 内存指针中的第一个evm字是实际返回数据的abi编码位置
+            //
+            // 生成 proofOutput (这里面就包含了生成的 inputs 和 outputs)  TODO 很多地方用到
+            //
+            // =================================================== 
+            // =================================================== 
             proofOutputs := add(memPtr, mload(memPtr))
         }
 
@@ -312,6 +337,15 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
 
                 // 根据proofHash 和当前 msg.sender 算出 proofHash的校验标识key
                 bytes32 validatedProofHash = keccak256(abi.encode(proofHash, _proof, msg.sender));
+
+                // =================================================== 
+                // ===================== 超级重要 =====================
+                // 
+                // 将 证明 的Hash 标识置为 可用, 
+                // 只有可用的在后面 update note 的 inputs 和 output 时, 才可用
+                //
+                // =================================================== 
+                // =================================================== 
                 validatedProofs[validatedProofHash] = true;
             }
         }
@@ -383,7 +417,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
         (uint8 epoch, uint8 category, uint8 id) = _proof.getProofComponents();
         // 先校验 三维数组 中根据 epoch, category, proofId 作为下标 获取对应的 proof合约地址 是否合法 
         require(validators[epoch][category][id] != address(0x0), "can only invalidate proofs that exist");
-        // 将地址置为黑名单
+        // 将 proof合约地址置为黑名单
         disabledValidators[epoch][category][id] = true;
     }
 
@@ -496,6 +530,9 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
                         0x03,
                         and(_proof, 0x1f)
                     ),
+
+                    // disabledValidators_slot 和 bool[0x100][0x100][0x10000] public disabledValidators; 有关系??
+                    //
                     sload(add(shr(5, _proof), disabledValidators_slot))
                 )
 
@@ -636,6 +673,9 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
             // 即存储插槽偏移量是_proof的值
             // 
             // 最终根据 add(_proof, validators_slot) 作为 statedb 的key, 查出 value: validatorAddress
+            //
+            // validators_slot 和 address[0x100][0x100][0x10000] public validators; 有关系 ??
+            // 
             validatorAddress := sload(add(_proof, validators_slot))
 
             isValidatorDisabled :=

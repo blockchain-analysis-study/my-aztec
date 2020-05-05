@@ -18,6 +18,10 @@ pragma solidity >=0.5.0 <0.6.0;
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
+//
+// TODO EIP712 标准: 一个对结构化数据的Hash标准
+//  
+// TODO 这个也是 【AZTEC加密引擎】
 contract LibEIP712 {
 
     // EIP712 Domain Name value

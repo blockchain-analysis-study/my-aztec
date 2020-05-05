@@ -73,6 +73,8 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     // 每个用户都有自己的票据note注册表
     struct NoteRegistry {
         // 这是一个 票决注册表行为 合约类型
+        // 每一个 behaviour 中只会包含一个 registry
+        // 即: 每个 behaviour 就是 每个 registry
         NoteRegistryBehaviour behaviour;
         // 这是一个 具备 mint 功能的 ERC20 合约类型
         IERC20Mintable linkedToken;
@@ -101,7 +103,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     // 索引的结构是 (epoch, cryptoSystem, assetType)
     //
     // 0x100 == 256  0x10000 == 65536 == 256*256
-    address[0x100][0x100][0x10000] factories;
+    address[0x100][0x100][0x10000] factories; 
 
 
     uint8 public defaultRegistryEpoch = 1; // 默认注册表epoch
@@ -219,7 +221,9 @@ contract NoteRegistryManager is IAZTEC, Ownable {
             // 全部放在一起。 相对于'_factoryId'的存储插槽偏移为...
             // (_factoryId & 0xffff0000) + (_factoryId & 0xff00) + (_factoryId & 0xff)
             // 即, 存储插槽偏移量是_factoryId的值
-           
+
+            // 是由 setFactory() 方法置入的
+            // 
             factoryAddress := sload(add(_factoryId, factories_slot))
 
             // factoryAddress 是否为空, 0: 非空, 1: 为空
@@ -259,7 +263,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
         registry.totalSupply = registry.totalSupply.add(_value);
         registry.totalSupplemented = registry.totalSupplemented.add(_value);
         
-        // 获取 对应的 注册信息
+        // 获取 对应的 注册表信息
         (
             uint256 scalingFactor,
             ,,
@@ -363,6 +367,9 @@ contract NoteRegistryManager is IAZTEC, Ownable {
         representation and vice versa
     * @param _factoryId - uint24 which contains 3 uint8s representing (epoch, cryptoSystem, assetType)
     */
+    // ======================================================================
+    // ============================== 超级 重要 ==============================
+    // ======================================================================
     //
     // NoteRegistry创建方法。 取得要使用的工厂的ID
     //
@@ -371,6 +378,10 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     // _canAdjustSupply: noteRegistry是否可以使用【mint】和 【burn】
     // _canConvert: noteRegistry是否可以将 【价值从私人代表转移到公共代表，反之亦然】
     // _factoryId: uint24，其中包含3个uint8，分别表示 (epoch，cryptoSystem，assetType)
+    //
+    // ======================================================================
+    // ======================================================================
+    // ======================================================================
     function createNoteRegistry(
         address _linkedTokenAddress,
         uint256 _scalingFactor,
@@ -418,6 +429,10 @@ contract NoteRegistryManager is IAZTEC, Ownable {
         // ================= 超级 重要 =================
         // 实例化一个 工厂合约 
         // 并由 当前工厂合约 部署一个新的 注册行为合约实例
+        //
+        // 实际返回的是 BehaviourAdjustable201907 实例 而不是 Behaviour201907 实例
+        // TODO BehaviourAdjustable201907 继承了 Behaviour201907
+        //      BehaviourAdjustable201907 主要实现了 mint() 和 burn() 两个方法 (具备 confidential transfer 性质)
         // ============================================
         // ============================================
         address behaviourAddress = NoteRegistryFactory(factory).deployNewBehaviourInstance();
@@ -439,8 +454,14 @@ contract NoteRegistryManager is IAZTEC, Ownable {
             behaviourInitialisation // 调用入参, 参数: _data
         ));
 
-
+        // =======================================================
+        // ====================== 超级 重要 ======================
+        //
         // 往 Note注册表中 添加一个新的关于msg.sender的 note注册信息
+        // TODO 各个地方使用的 registrie 都是这里 创建的
+        //
+        // =======================================================
+        // =======================================================
         registries[msg.sender] = NoteRegistry({
             behaviour: NoteRegistryBehaviour(proxy), // 这里其实用到了 Ownable 合约的构造, 将behaviour的代理合约地址赋值
             linkedToken: IERC20Mintable(_linkedTokenAddress), // 实例化一个 ERC20 合约实例, 该合约地址为 _linkedTokenAddress
@@ -494,7 +515,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
         require(assetType == oldAssetType, "expected assetType to be the same for old and new registry");
         
 
-        // 获取新的 factory地址
+        // 获取新的 factory地址 TODO (这里的FactoryAddress和factoryId  是由 setFactory() 方法存入statedb的??)
         address factory = getFactoryAddress(_factoryId);
         // 部署新的 行为合约
         address newBehaviour = NoteRegistryFactory(factory).deployNewBehaviourInstance();

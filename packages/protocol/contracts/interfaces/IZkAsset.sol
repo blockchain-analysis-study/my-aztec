@@ -19,6 +19,8 @@ pragma solidity >=0.5.0 <0.6.0;
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
 
+// 定义ZkAsset标准的接口
+// 
 interface IZkAsset {
 
     /**
@@ -32,6 +34,15 @@ interface IZkAsset {
      * @param _approval - bool (true if approving, false if revoking)
      * @param _proofSignature - ECDSA signature over the proof, approving it to be spent
      */
+     //
+     // note 所有者可以 批准第三方地址（例如智能合约）来代表他们花费多个 note。 
+     // 这允许对 notes 进行批处理批准，而不是通过 confidentialApprove()方法 对每个 note 进行单独批准。
+     //
+     // _proofId: proof的Id
+     // _proofOutputs: 该proof参与生成的 proofOutput (里面含有 input 和 output)
+     // _spender: 地址被批准用于花费 notes
+     // _approval: bool（如果批准，则为true，如果撤消，则为false）
+     // _proofSignature: ECDSA在证据上签名，批准将其花费
     function approveProof(
         uint24 _proofId,
         bytes calldata _proofOutputs,
@@ -52,6 +63,16 @@ interface IZkAsset {
     * @param _signature - ECDSA signature from the note owner that validates the
     * confidentialApprove() instruction
     */
+    //
+    // note所有者批准第三方（另一个地址）代表所有者花费notes. 
+    // 这是允许调用 confidentialTransferFrom() 方法的必要条件.
+    //
+    // _noteHash: note坐标的keccak256 hash (gamma and sigma)
+    //             请参考 Behaviuor201907中的registry.notes 和 NoteUtils的 extractNote()
+    // _spender: 地址被批准用于花费 note
+    // _spenderApproval: 定义是否批准_spender地址用于花费 note，或者是否撤消权限。
+    //                   如果批准则为 true，否则为false
+    // _signature: 来自 note 所有者的ECDSA签名，用于验证 confidentialApprove() 指令
     function confidentialApprove(
         bytes32 _noteHash,
         address _spender,
@@ -70,6 +91,13 @@ interface IZkAsset {
     * @param _proofOutput - output of a zero-knowledge proof validation contract. Represents
     * transfer instructions for the ACE
     */
+    //
+    // 执行以智能合约为中介的价值转移。 
+    // 该方法提供有transfer指令，该transfer指令由从 [证明验证合约] 输出的字节_proofOutput 来表示
+    //
+    // _proof: uint24变量，用作 提交_proofOutput的证明的唯一标识符。 _proof包含三个串联的uint8变量：
+    //          1）epoch 2）category 3）proofId
+    // _proofOutput: 零知识证明验证合同的输出。 代表ACE的转移说明 (内含有 N个 inputs 和 M个outputs 及一些其他信息)
     function confidentialTransferFrom(uint24 _proof, bytes calldata _proofOutput) external;
 
 
@@ -84,6 +112,14 @@ interface IZkAsset {
     * transfer instructions for the ACE
     * @param _signatures - array of the ECDSA signatures over all inputNotes
     */
+    //
+    // 执行AZTEC note 的基本单方面 confidential transfer 将_proofData提交到 [密码引擎] 的 validateProof() 函数
+    // 验证成功后，它将更新 【note注册表】 状态 - 创建 output notes 并销毁 input notes
+    // 
+    // TODO 这就是 一次 加密交易啊
+    //
+    // _proofData: 从 proof验证合约 中输出的字节变量，表示ACE的传输指令
+    // _signatures: 所有 inputs上的ECDSA签名数组
     function confidentialTransfer(bytes calldata _proofData, bytes calldata _signatures) external;
 
     /**
@@ -98,6 +134,9 @@ interface IZkAsset {
     * transfer instructions for the ACE
     * @param _signatures - array of the ECDSA signatures over all inputNotes
     */
+    //
+    // 重载 加了 proofId 参数入参
+    // 
     function confidentialTransfer(uint24 _proofId, bytes calldata _proofData, bytes calldata _signatures) external;
 
     /**
@@ -105,6 +144,10 @@ interface IZkAsset {
     * @param noteHash - hash of a note, used as a unique identifier for the note
     * @param metaData - metadata to update the note with
     */
+    //
+    // 更新存储中已存在的 note 的元数据 
+    // noteHash: note的哈希，用作note的唯一标识符
+    // metaData: 元数据来更新 note
     function updateNoteMetaData(bytes32 noteHash, bytes calldata metaData) external;
 
     event CreateZkAsset(

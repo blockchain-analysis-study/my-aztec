@@ -144,6 +144,8 @@ m
     */
     // 获取与特定factoryId关联的工厂地址。 (工厂合约对应的Address) 如果结果地址为0x0，则失败。
     // _factoryId: uint24，其中包含3个uint8，分别表示（epoch，cryptoSystem，assetType）
+    //
+    // NoteRegistryManager 实现
     function getFactoryAddress(uint24 _factoryId) external view returns (address factoryAddress);
 
     /**
