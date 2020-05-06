@@ -145,7 +145,7 @@ interface IZkAsset {
     * @param metaData - metadata to update the note with
     */
     //
-    // 更新存储中已存在的 note 的元数据 
+    // 更新存储中已存在的 note 的元数据
     // noteHash: note的哈希，用作note的唯一标识符
     // metaData: 元数据来更新 note
     function updateNoteMetaData(bytes32 noteHash, bytes calldata metaData) external;

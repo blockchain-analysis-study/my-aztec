@@ -30,14 +30,23 @@ import "../../libs/ProofUtils.sol";
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
+// =================================================
+// ==================== 超级重要 ====================
+//
+// TODO 这个是最重要的 合约之一
+//
+// =================================================
+// =================================================
 contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     using NoteUtils for bytes;
     using SafeMath for uint256;
     using ProofUtils for uint24;
 
     // EIP712 Domain Name value
+    // EIP712 标准的  域名
     string constant internal EIP712_DOMAIN_NAME = "ZK_ASSET";
 
+    // EIP712 标准的 ProofSignature 函数Hash
     bytes32 constant internal PROOF_SIGNATURE_TYPE_HASH = keccak256(abi.encodePacked(
         "ProofSignature(",
             "bytes32 proofHash,",
