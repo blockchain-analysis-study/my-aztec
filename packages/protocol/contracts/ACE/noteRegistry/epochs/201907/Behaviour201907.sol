@@ -355,7 +355,7 @@ contract Behaviour201907 is NoteRegistryBehaviour {
         }
     }
 
-    // 内部函数创建一个新的笔记对象
+    // 内部函数创建一个新的note对象
     // _noteHash: 一个 note 的Hash
     // _noteOwner: 该 note 对应的 owner (一个 以太坊地址)
     function createNote(bytes32 _noteHash, address _noteOwner) internal {
@@ -364,6 +364,8 @@ contract Behaviour201907 is NoteRegistryBehaviour {
         uint256 noteStatus = uint256(NoteStatus.UNSPENT);
 
         // 根据noteHash 从 注册表中获取对应的 note信息
+        // 
+        // 这个 没有的话, 是返回一个新的空的note对象 notePtr 指针 ???? 
         Note storage notePtr = registry.notes[_noteHash];
 
         // 获取的 note 的状态 必须为, 不存在

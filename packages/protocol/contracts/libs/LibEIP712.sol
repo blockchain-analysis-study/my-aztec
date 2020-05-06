@@ -111,7 +111,17 @@ contract LibEIP712 {
             mstore(0x00, 0x1901)               // EIP191 header  写入 EIP191 的头
             mstore(0x20, eip712DomainHash)     // EIP712 domain hash  写入本合约中的字段 (即: 构造函数中算出来的 domainHash)
             mstore(0x40, _hashStruct)          // Hash of struct 写入 入参的 _hashStruct
-            _result := keccak256(0x1e, 0x42)   // compute hash  计算Hash ?? 这个是干嘛呢 ??
+
+            // keccak256(30, 66) | keccak256(offset, size)
+            //
+            // 在 opSha3 中是这样写的..
+            //
+            // offset, size := stack.pop(), stack.pop()
+            // data := memory.GetPtr(offset.Int64(), size.Int64())
+            // 
+            _result := keccak256(0x1e, 0x42)   // compute hash  计算Hash, 这个就是 该函数的返回值啦
+
+
             // replace memory pointer
             mstore(0x40, memPtr)  // 重新将之前在0x40 读出来的可用指针, "覆盖" 写回去
         }

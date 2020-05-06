@@ -54,10 +54,15 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
             "bool approval",
         ")"
     ));
+
+    // 
     string private constant EIP712_DOMAIN  = "EIP712Domain(string name,string version,address verifyingContract)";
 
+    // 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(abi.encodePacked(EIP712_DOMAIN));
 
+
+    //
     bytes32 constant internal NOTE_SIGNATURE_TYPEHASH = keccak256(abi.encodePacked(
         "NoteSignature(",
             "bytes32 noteHash,",
@@ -66,6 +71,7 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         ")"
     ));
 
+    //
     bytes32 constant internal JOIN_SPLIT_SIGNATURE_TYPE_HASH = keccak256(abi.encodePacked(
         "JoinSplitSignature(",
             "uint24 proof,",
@@ -74,6 +80,9 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
             "address sender",
         ")"
     ));
+
+
+
 
     IACE public ace;
     IERC20Mintable public linkedToken;
@@ -256,6 +265,8 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param _noteHash - keccak256 hash of the note coordinates (gamma and sigma)
     * @param _signature - ECDSA signature for a particular input note
     */
+    // 对输入便笺上的签名执行ECDSA签名验证
+    //
     function validateSignature(
         bytes32 _hashStruct,
         bytes32 _noteHash,

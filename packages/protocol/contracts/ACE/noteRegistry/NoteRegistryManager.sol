@@ -757,11 +757,11 @@ contract NoteRegistryManager is IAZTEC, Ownable {
      * @return noteOwner - address of the note owner
      */
      //
-     // 返回给定地址的注释和注释哈希
+     // 返回给定地址的 note 和 noteHash 
      // 
      // 入参:
      // _registryOwner: 注册表所有者的地址
-     // _noteHash: keccak256注释坐标的哈希值（ gamma 和 sigma）
+     // _noteHash: keccak256 note 坐标的哈希值（ gamma 和 sigma）
      //
      // 返参: 
      // status: note的状态，详细说明note是否在note注册表中或已被销毁
