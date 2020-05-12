@@ -34,6 +34,9 @@ import "../libs/SafeMath8.sol";
 **/
 // 分别 集成了, IAZTEC, Ownable, NoteRegistryManager 三个合约
 // Ownable 是在 openzeppelin-solidity/contracts/ownership/Ownable.sol 的合约
+//
+//
+// ACE 主要管理验证算法，合约内会存储所有支持算法的合约地址。同时也是各种资产交易操作的入口。 但ACE不存储交易数据
 contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     using NoteUtils for bytes;
     using ProofUtils for uint24;
@@ -60,7 +63,8 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     bytes32[6] private commonReferenceString; 
 
     // `validators`contains the addresses of the contracts that validate specific proof types
-    // `validators` 包含验证特定proof类型的合约地址
+    //
+    // TODO `validators` 包含验证特定proof类型的合约地址
     // 数组的维分别表示, [epoch][category][id] == [256][256][256*256]
     address[0x100][0x100][0x10000] public validators; 
 
@@ -264,6 +268,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
             let memPtr := mload(0x40)
 
             // location in calldata of the start of `bytes _proofData` (0x100)
+            //
             // `bytes _proofData` 的开头在calldata中的位置（0x100）
             // mstore(start, val), 将val存入已 start 为指针起始点的 memory中
             //
@@ -328,6 +333,8 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
 
         // if this proof satisfies a balancing relationship, we need to record the proof hash
         // 如果此证明满足平衡关系，我们需要记录证明哈希
+
+        // (_proof >> 8) & 0xff 这个动作是单独滤出 proof 中的 category 字段的值
         if (((_proof >> 8) & 0xff) == uint8(ProofCategory.BALANCED)) {
             uint256 length = proofOutputs.getLength();
             for (uint256 i = 0; i < length; i += 1) {
@@ -336,7 +343,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
                 bytes32 proofHash = keccak256(proofOutputs.get(i));
 
                 // 根据proofHash 和当前 msg.sender 算出 proofHash的校验标识key
-                bytes32 validatedProofHash = keccak256(abi.encode(proofHash, _proof, msg.sender));
+                bytes32 validatedProofHash = keccak256(abi.encode(proofHash, _proof, msg.sender)); // 这里的, msg.sender 可能是 某个ZKAsset合约地址哦, 方法入参的 _sender 可能是真正交易的sender呢
 
                 // =================================================== 
                 // ===================== 超级重要 =====================

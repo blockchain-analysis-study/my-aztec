@@ -10,6 +10,7 @@ import "../../interfaces/IERC20Mintable.sol";
 import "./interfaces/NoteRegistryBehaviour.sol";
 import "./interfaces/NoteRegistryFactory.sol";
 import "../../Proxies/AdminUpgradeabilityProxy.sol";
+import "..\..\ERC1724\ZkAsset.sol";
 
 /**
  * @title NoteRegistryManager
@@ -34,7 +35,11 @@ import "../../Proxies/AdminUpgradeabilityProxy.sol";
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
 // 票据 note 注册表 管理合约 
-// 继承 
+//
+//
+// TODO 两个主要功能
+//      一、负责管理实际存储交易合约的相关信息。由成员变量 registries 记录
+//      二、保持存在的多种工厂模式合约，来构造实际数据存储的合约实力。 有factories 保持工厂合约地址
 contract NoteRegistryManager is IAZTEC, Ownable {
     using SafeMath for uint256;
     using VersioningUtils for uint24;
@@ -93,6 +98,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
 
     // TODO 各个账户的note注册表集
     // 定义 一个装载  该发起者的 一个 加密票据note 的注册列表结构
+    //   这里的 交易发起者 基本是 一个 ZKAsset合约的地址
     mapping(address => NoteRegistry) public registries;
 
     /**
@@ -115,7 +121,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     //
     // key是由 keccak256(abi.encode(proofHash, _proof, msg.sender))
     // value: bool
-    mapping(bytes32 => bool) public validatedProofs;
+    mapping(bytes32 => bool) public validatedProofs; // true: 已经校验过proof 可被使用; false: 未被校验 或者 已经失效
 
     /**
     * @dev Increment the default registry epoch
@@ -314,19 +320,15 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     * @param _canConvert - whether the noteRegistry can transfer value from private to public
         representation and vice versa
     */
-    // TODO 实现了 IACE 中的 
-    // createNoteRegistry (
-    //    address _linkedTokenAddress,
-    //    uint256 _scalingFactor,
-    //    bool _canAdjustSupply,
-    //    bool _canConvert)
-    //
+   
     // 默认的noteRegistry创建方法。 不采用要使用的工厂ID，而是根据默认值和传递的标志生成该ID
     //
     // _linkedTokenAddress: 任何erc20链接令牌的地址 (如果canConvert为true，则不能为0x0)
     // _scalingFactor: 定义AZTEC注释值1映射到的令牌数量.
     // _canAdjustSupply: noteRegistry是否可以使用【mint】和 【burn】
     // _canConvert: noteRegistry是否可以将 【价值从私人代表转移到公共代表，反之亦然】
+    //
+    // TODO 这个方法由 ZKAssetBase 发起调用
     function createNoteRegistry(
         address _linkedTokenAddress,
         uint256 _scalingFactor,
@@ -462,6 +464,9 @@ contract NoteRegistryManager is IAZTEC, Ownable {
         //
         // =======================================================
         // =======================================================
+        //
+        // todo 这里的 msg.sender 基本是通过 ZKAsset 跨合约调用过来的,
+        //      所以, msg.sender 基本上是对应的ZKAsset合约地址
         registries[msg.sender] = NoteRegistry({
             behaviour: NoteRegistryBehaviour(proxy), // 这里其实用到了 Ownable 合约的构造, 将behaviour的代理合约地址赋值
             linkedToken: IERC20Mintable(_linkedTokenAddress), // 实例化一个 ERC20 合约实例, 该合约地址为 _linkedTokenAddress
@@ -617,12 +622,12 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     * @param _proofOutput - transfer instructions issued by a zero-knowledge proof
     * @param _proofSender - address of the entity sending the proof
     */
-    // 根据零知识证明发出的传输指令更新笔记注册表的状态. 
-    // 此方法将验证相关证明是否已通过验证，确保相同的证明不能重复使用，然后将其委托给相关的注释.
+    // 根据 `零知识证明` 发出的 transfer 指令更新 note注册表的状态.
+    // 此方法将验证相关证明是否已通过验证，确保相同的证明不能重复使用，然后将其委托给相关的 note.
     //
     // _proof: 证明的唯一标识符
     // _proofOutput: 零知识证明发出的转移指令
-    // _proofSender: 发送证明的实体的地址
+    // _proofSender: 发送证明的实体的地址 (在ACE的 validateProof() 函数中生成 validatedProofHash 的sender, 一般是某个 ZKAsset合约)
     function updateNoteRegistry(
         uint24 _proof,
         bytes memory _proofOutput,
@@ -630,6 +635,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     ) public {
 
         // 因为 不改变 registry 本身数据 而只是需要用 registry 中的某些变量
+        // 这里的 msg.sender 一般是 跨合约发起者的 某个ZKAsset合约
         NoteRegistry memory registry = registries[msg.sender];
         // 改 registry 的实现合约 behaviour 必须存在
         require(address(registry.behaviour) != address(0x0), "note registry does not exist");
@@ -642,12 +648,13 @@ contract NoteRegistryManager is IAZTEC, Ownable {
 
         require(
             // 表示是否已验证相应的AZTEC证明的布尔值, 在ACE中得到实现
+            // 调用ACE中的 validateProofByHash()函数
             validateProofByHash(_proof, proofHash, _proofSender) == true,
             "ACE has not validated a matching proof"
         );
         // clear record of valid proof - stops re-entrancy attacks and saves some gas
         // 清除 有效证明记录-阻止 重放攻击 并节省一些gas
-        // 也就是说, 使用过后就需要 销毁掉
+        // 也就是说, 使用过后就需要 销毁掉, 将 proof的验证Hash置为 失效
         validatedProofs[validatedProofHash] = false;
 
         // publicValue: 用于零知识证明的kPublic值
@@ -676,17 +683,21 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     * @dev Adds a public approval record to the noteRegistry, for use by ACE when it needs to transfer
         public tokens it holds to an external address. It needs to be associated with the hash of a proof.
     */
-    // 将【公共批准记录】添加到noteRegistry中，以供ACE在需要将其持有的公共令牌转移到外部地址时使用。 它需要与证明的哈希关联。
+    // 将【公共批准记录】添加到noteRegistry中，以供ACE在需要将其持有的public token 转移到外部地址时使用。 它需要与 proofHash关联。
     //
-    // _registryOwner: 有关注册表所有者的地址
+    // _registryOwner: 有关注册表所有者的地址 (一般是某个 ZKAsset 合约地址)
     // _proofHash: 由 keccak256(proofOutput) 生成
-    // _value: 被批准 可以试用的 value 数目, 是用于零知识证明的kPublic值 
+    // _value: 被批准 可以试用的 value 数目, 是用于零知识证明的kPublic值
+    //
+    // todo 注意 _registryOwner 和 _proofHash 要有丝缕关系哦
     function publicApprove(address _registryOwner, bytes32 _proofHash, uint256 _value) public {
 
         // 获取对应的 note注册表 信息
         NoteRegistry storage registry = registries[_registryOwner];
         // 校验注册表对应的 行为实现合约
         require(address(registry.behaviour) != address(0x0), "note registry does not exist");
+
+        // 当前交易的发送人
         registry.publicApprovals[msg.sender][_proofHash] = _value;
     }
 
@@ -760,7 +771,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
      // 返回给定地址的 note 和 noteHash 
      // 
      // 入参:
-     // _registryOwner: 注册表所有者的地址
+     // _registryOwner: 注册表所有者的地址 (一般是某个 ZKAsset合约的地址)
      // _noteHash: keccak256 note 坐标的哈希值（ gamma 和 sigma）
      //
      // 返参: 

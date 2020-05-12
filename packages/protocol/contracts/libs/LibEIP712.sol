@@ -19,7 +19,7 @@ pragma solidity >=0.5.0 <0.6.0;
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
 //
-// TODO EIP712 标准: 一个对结构化数据的Hash标准
+// TODO EIP712 标准: 一个对结构化数据的Hash标准 (让 签名不仅仅只是针对 字符串)
 //  
 // TODO 这个也是 【AZTEC加密引擎】
 contract LibEIP712 {
@@ -33,6 +33,16 @@ contract LibEIP712 {
     // Hash of the EIP712 Domain Separator Schema
     //
     // 定义域分隔符的哈希值
+    //
+    // eip712Domain的类型是一个名为EIP712Domain的结构体，并带有一个或多个以下字段。
+    // 协议设计者只需要包含对其签名域名有意义的字段，未使用的字段不在结构体类型中。
+    //
+    //      string name：用户可读的签名域名的名称。例如Dapp的名称或者协议。
+    //      string version：签名域名的目前主版本。不同版本的签名不兼容。
+    //      uint256 chainId：EIP-155中的链id。用户代理应当拒绝签名如果和目前的活跃链不匹配的话。
+    //      address verifyContract：验证签名的合约地址。用户代理可以做合约特定的网络钓鱼预防。
+    //      bytes32 salt：对协议消除歧义的加盐。这可以被用来做域名分隔符的最后的手段。
+    // 
     bytes32 constant internal EIP712_DOMAIN_SEPARATOR_SCHEMA_HASH = keccak256(abi.encodePacked(
         "EIP712Domain(",
             "string name,",

@@ -20,11 +20,14 @@ import "../libs/LibEIP712.sol";
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
+//
+// 定义 对外的 JoinSplitFluid 接口合约
 contract JoinSplitFluidInterface is LibEIP712 {
     /* solhint-disable-next-line var-name-mixedcase */
 
     constructor() public {}
 
+    // 除了这个 自有的 func 外, 还具备 继承了 LibEIP712 的方法
     function validateJoinSplitFluid(
         bytes calldata, // proof data
         address, // sender address

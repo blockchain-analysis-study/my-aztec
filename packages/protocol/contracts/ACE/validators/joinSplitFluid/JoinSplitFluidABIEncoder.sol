@@ -25,6 +25,13 @@ pragma solidity >=0.5.0 <0.6.0;
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 **/
+//
+// =============================================
+// ================== 超级重要 ==================
+// 库: 聚合|拆分 inputs + outputs 的工作库
+// =============================================
+// =============================================
+// 
 library JoinSplitFluidABIEncoder {
     /**
      * Calldata map

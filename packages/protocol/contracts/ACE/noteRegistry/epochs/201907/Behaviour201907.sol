@@ -292,6 +292,7 @@ contract Behaviour201907 is NoteRegistryBehaviour {
         );
         Note storage notePtr = registry.notes[_noteHash];
 
+        // 获取 note 的相关字段
         // 这里就是 后面 createNote() 和 deleteNote() 操作的 note 信息
         assembly {
             let note := sload(notePtr_slot)
@@ -303,7 +304,7 @@ contract Behaviour201907 is NoteRegistryBehaviour {
     }
 
     // 给定字节数组的内部函数更新noteRegistry
-    // _inputNotes: 一组 UTXO的 input 的 note
+    // _inputNotes: 一组 UTXO 的 input 的 note
     function updateInputNotes(bytes memory inputNotes) internal {
         uint256 length = inputNotes.getLength();
 

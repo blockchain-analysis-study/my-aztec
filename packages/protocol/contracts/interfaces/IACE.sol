@@ -20,6 +20,7 @@ pragma solidity >=0.5.0 <0.6.0;
 **/
 // 这个是 最主要的 组件接口
 // ACE: AZTEC Cryptography Engine
+// 是一个对外的接口合约, 聚合了 ACE、NoteRegistryMnager、Behaviour201907 等等合约的某些对外方法
 contract IACE {
 
     uint8 public latestEpoch;
@@ -261,7 +262,7 @@ m
     // _proof: AZTEC证明对象
     function invalidateProof(uint24 _proof) external;
 
-    // 这个是？    
+    // 这个是 Ownerble 合约的方法    
     function isOwner() external view returns (bool);
 
     /**
@@ -295,7 +296,7 @@ m
     ) external returns (bytes memory);
     
 
-    // 这个是 ?
+    // 这个是 Ownerble 合约的方法
     function owner() external returns (address);
 
     /**
@@ -306,7 +307,7 @@ m
     function publicApprove(address _registryOwner, bytes32 _proofHash, uint256 _value) external;
 
 
-    // 放弃所有权
+    // 这个是 Ownerble 合约的方法
     function renounceOwnership() external;
 
     /**
@@ -376,7 +377,7 @@ m
     // _value: 要增加的价值
     function supplementTokens(uint256 _value) external;
 
-    // 这个是 ?
+   // 这个是 Ownerble 合约的方法
     function transferOwnership(address newOwner) external;
 
 

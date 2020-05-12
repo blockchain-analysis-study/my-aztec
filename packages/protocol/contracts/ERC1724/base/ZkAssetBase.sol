@@ -35,6 +35,8 @@ import "../../libs/ProofUtils.sol";
 //
 // TODO 这个是最重要的 合约之一
 //
+// TODO 资产操作接口， 包括自己从代币合约转入到AZTEC和AZTEC资产转回到代币合约
+// TODO 与多种代币合约对接
 // =================================================
 // =================================================
 contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
@@ -46,7 +48,12 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     // EIP712 标准的  域名
     string constant internal EIP712_DOMAIN_NAME = "ZK_ASSET";
 
-    // EIP712 标准的 ProofSignature 函数Hash
+    
+    // hashStruct(s : 𝕊) = keccak256(typeHash ‖ encodeData(s)) ，
+    // 其中 typeHash = keccak256(encodeType(typeOf(s)))
+    // 
+    // 对 ProofSignature 结构求 typeHash 
+    // typeHash对于给定结构类型来说是一个常量，并不需要运行时再计算
     bytes32 constant internal PROOF_SIGNATURE_TYPE_HASH = keccak256(abi.encodePacked(
         "ProofSignature(",
             "bytes32 proofHash,",
@@ -55,14 +62,28 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         ")"
     ));
 
+    // Hash of the EIP712 Domain Separator Schema
+    //
+    // 定义域分隔符的哈希值
+    //
+    // eip712Domain的类型是一个名为EIP712Domain的结构体，并带有一个或多个以下字段。
+    // 协议设计者只需要包含对其签名域名有意义的字段，未使用的字段不在结构体类型中。
+    //
+    //      string name：用户可读的签名域名的名称。例如Dapp的名称或者协议。
+    //      string version：签名域名的目前主版本。不同版本的签名不兼容。
+    //      uint256 chainId：EIP-155中的链id。用户代理应当拒绝签名如果和目前的活跃链不匹配的话。
+    //      address verifyContract：验证签名的合约地址。用户代理可以做合约特定的网络钓鱼预防。
+    //      bytes32 salt：对协议消除歧义的加盐。这可以被用来做域名分隔符的最后的手段。
     // 
     string private constant EIP712_DOMAIN  = "EIP712Domain(string name,string version,address verifyingContract)";
-
-    // 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(abi.encodePacked(EIP712_DOMAIN));
 
 
-    //
+    // hashStruct(s : 𝕊) = keccak256(typeHash ‖ encodeData(s)) ，
+    // 其中 typeHash = keccak256(encodeType(typeOf(s)))
+    // 
+    // 对 NoteSignature 结构求 typeHash 
+    // typeHash对于给定结构类型来说是一个常量，并不需要运行时再计算
     bytes32 constant internal NOTE_SIGNATURE_TYPEHASH = keccak256(abi.encodePacked(
         "NoteSignature(",
             "bytes32 noteHash,",
@@ -71,7 +92,7 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         ")"
     ));
 
-    //
+    // 同上, 是 `JoinSplitSignature` 结构的 typeHash
     bytes32 constant internal JOIN_SPLIT_SIGNATURE_TYPE_HASH = keccak256(abi.encodePacked(
         "JoinSplitSignature(",
             "uint24 proof,",
@@ -83,10 +104,13 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
 
 
 
-
+    // 是一个对外的接口合约, 聚合了 ACE、NoteRegistryMnager、Behaviour201907 等等合约的某些对外方法
+    // 所以, 它是一个 IACE的临时量 (根据上述几个合约地址动态的对应各个合约实例)
     IACE public ace;
     IERC20Mintable public linkedToken;
 
+
+    // 存放 保密交易的 许可(approve)
     mapping(bytes32 => mapping(address => bool)) public confidentialApproved;
     mapping(bytes32 => uint256) public metaDataTimeLog;
     mapping(bytes32 => uint256) public noteAccess;
@@ -98,14 +122,25 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         uint256 _scalingFactor,
         bool _canAdjustSupply
     ) public {
+
+        // 根据 ERC20 的地址是否为 空, 确定是否可以做 转换动作
         bool canConvert = (_linkedTokenAddress == address(0x0)) ? false : true;
+
+
+        // 修改 LibEIP712 中的值
         EIP712_DOMAIN_HASH = keccak256(abi.encodePacked(
             EIP712_DOMAIN_SEPARATOR_SCHEMA_HASH,
             keccak256(bytes(EIP712_DOMAIN_NAME)),
             keccak256(bytes(EIP712_DOMAIN_VERSION)),
             bytes32(uint256(address(this)))
         ));
+
+        // 在使用时, 传入具体的合约地址
+        // 合约为:  ACE、NoteRegistryMnager、Behaviour201907 等等合约
+        // TODO 注意, 一定要传对, 不然 某些合约可没有对应的方法
         ace = IACE(_aceAddress);
+
+        // 实例化, 某个ERC20 合约实例
         linkedToken = IERC20Mintable(_linkedTokenAddress);
         ace.createNoteRegistry(
             _linkedTokenAddress,
@@ -113,6 +148,8 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
             _canAdjustSupply,
             canConvert
         );
+
+        // 发送 事件, 记录 ZKAsset 合约的实例化
         emit CreateZkAsset(
             _aceAddress,
             _linkedTokenAddress,
@@ -134,11 +171,23 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * transfer instructions for the IACE
     * @param _signatures - array of the ECDSA signatures over all inputNotes
     */
+    //
+    // 执行AZTEC note 的基本单方面 confidential transfer 将_proofData提交给 Cryptography Engine 的 validateProof()函数
+    // 验证成功后，它将更新note注册表状态-创建新的 output notes 并销毁旧的 input notes
+    //
+    // _proofId: 要验证的证明。 需要成为 balanced的证明
+    // _proofData: 验证合同的输出字节变量，表示IACE的传输指令
+    // _signatures: 所有 inputs 上的ECDSA签名数组
+    //
     function confidentialTransfer(uint24 _proofId, bytes memory _proofData, bytes memory _signatures) public {
         // Check that it's a balanced proof
+        //
+        // 从 proof 中解析出 category
         (, uint8 category, ) = _proofId.getProofComponents();
 
+        // 如果 proof 的category只能是 balaced 类型
         require(category == uint8(ProofCategory.BALANCED), "this is not a balanced proof");
+        //
         bytes memory proofOutputs = ace.validateProof(_proofId, msg.sender, _proofData);
         confidentialTransferInternal(_proofId, proofOutputs, _signatures, _proofData);
     }
@@ -154,7 +203,15 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * transfer instructions for the IACE
     * @param _signatures - array of the ECDSA signatures over all inputNotes
     */
+    // 执行AZTEC note 的基本单方面 confidential transfer 将_proofData提交给 Cryptography Engine 的 validateProof()函数
+    // 验证成功后，它将更新note注册表状态-创建新的 output notes 并销毁旧的 input notes
+    //
+    // _proofData: 验证合同的输出字节变量，表示IACE的传输指令
+    // _signatures: 所有 inputs 上的ECDSA签名数组
+    //
+    // TODO 对外的方法
     function confidentialTransfer(bytes memory _proofData, bytes memory _signatures) public {
+        // 传递一个 proof 类型
         confidentialTransfer(JOIN_SPLIT_PROOF, _proofData, _signatures);
     }
 
@@ -185,6 +242,9 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         if (_signature.length != 0) {
             signatureLog[signatureHash] = true;
         }
+
+        // hashStruct(s : 𝕊) = keccak256(typeHash ‖ encodeData(s)) ，
+        // 其中 typeHash = keccak256(encodeType(typeOf(s)))
 
         bytes32 _hashStruct = keccak256(abi.encode(
                 NOTE_SIGNATURE_TYPEHASH,
@@ -219,6 +279,8 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         require(signatureLog[signatureHash] != true, "signature has already been used");
         signatureLog[signatureHash] = true;
 
+
+        // 其实这个就是 EIP712 标准中的 hashIdentity
         bytes32 DOMAIN_SEPARATOR = keccak256(abi.encode(
             EIP712_DOMAIN_TYPEHASH,
             keccak256("ZK_ASSET"),
@@ -226,9 +288,21 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
             address(this)
         ));
 
+        // ================================================================================
+        // =================================== 超级 重要 ===================================
+        //
+        // 其实这个就是 EIP712 标准中的 hashBid
+        //
+        // encode(domainSeparator : 𝔹²⁵⁶, message : 𝕊) = "\x19\x01" ‖ domainSeparator ‖ hashStruct(message)，
+        // ================================================================================
+        // ================================================================================
         bytes32 msgHash = keccak256(abi.encodePacked(
             "\x19\x01",
+
+            // domainSeparator
             DOMAIN_SEPARATOR,
+
+            // proof 的 hashStruct
             keccak256(abi.encode(
                 PROOF_SIGNATURE_TYPE_HASH,
                 keccak256(_proofOutputs),

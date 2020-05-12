@@ -28,7 +28,8 @@ import "../../../interfaces/IAZTEC.sol";
 **/
 // 定义 票决note注册表行为 合约
 //
-// TODO 主要是, 定义存储合约的接口
+// TODO 主要是, 定义存储合约的接口，根据不同版本有多种实现
+
 contract NoteRegistryBehaviour is Ownable, IAZTEC {
     using SafeMath for uint256;
 

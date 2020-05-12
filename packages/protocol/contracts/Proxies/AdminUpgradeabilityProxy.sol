@@ -7,9 +7,11 @@ import './BaseAdminUpgradeabilityProxy.sol';
  * @dev Extends from BaseAdminUpgradeabilityProxy with a constructor for
  * initializing the implementation, admin, and init data.
  */
- // 用来代理升级的 管理员合约
- //
- // 使用构造函数从BaseAdminUpgradeabilityProxy扩展，用于初始化实现，管理和初始化数据
+// 用来代理升级的 管理员合约
+//
+// 使用构造函数从BaseAdminUpgradeabilityProxy扩展，用于初始化实现，管理和初始化数据
+//
+// TODO 用来管理存储合约升级， 记录管理员地址和升级后的地址，防止随意升级。
 contract AdminUpgradeabilityProxy is BaseAdminUpgradeabilityProxy, UpgradeabilityProxy {
     /**
     * Contract constructor.
