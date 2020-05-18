@@ -22,7 +22,7 @@ contract IAZTEC {
     // 定义了 proof种类的 枚举类型
     enum ProofCategory {
         NULL,// 一个 空证明 ? 默认 0
-        BALANCED, // 满足 joinsplit 类型的证明, ACE.validateProof() 中用到  默认 1
+        BALANCED, // 满足 joinsplit 类型的证明, ACE.validateProof() 中用到  默认 1 todo 金额平衡 , 100 + 50 (input notes) == 90 + 20 + 40 (output notes)
         MINT, // token 转成 加密币  默认 2
         BURN, // 加密币 转成 token  默认 3
         UTILITY //       默认 4
