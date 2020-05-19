@@ -112,16 +112,18 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     IERC20Mintable public linkedToken;
 
 
-    // 存放 保密交易的 许可(approve)
+    // todo 存放 某些note可以花费的被授权addr
     //
-    // (proofOutputHash => (被批准可以花费note的addr => 是否被授权, true: 是, false: 否))
+    // (proofOutputHash => (被授权可以花费note的addr => 是否被授权, true: 是, false: 否))
     // 其中, proofOutputHash = keccak256(proofOutput)
     mapping(bytes32 => mapping(address => bool)) public confidentialApproved;
 
-
+    // 记录 note 创建的 时间
+    // (noteHash => createTime), 其中 createTime 是 取自当前 block的 timestamp
     mapping(bytes32 => uint256) public metaDataTimeLog;
 
-
+    // 记录note被批准花费的addr的信息
+    // (addressId => timestamp), todo 其中 addressID = keccak256(abi.encodePacked(extractedAddress, noteHash)), timestamp取 block.timestamp
     mapping(bytes32 => uint256) public noteAccess;
 
     // 记录所有的 签名, 做去重 防双花 防重放
@@ -251,21 +253,41 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param _signature - ECDSA signature from the note owner that validates the
     * confidentialApprove() instruction
     */
+
+    // todo 授权 第三方addr 代理花费当前 note  ##################### 单个授权
+    //
+    //  note 所有者批准第三方（另一个地址）代表所有者花费当前note。
+    //  这是必要的，以便允许调用 confidentialApprove()方法
+    //
+    // _noteHash: 需要被授权的 note的Hash
+    // _spender: 需要被授权的 账户
+    // _spenderApproval: 是否授权的标识
+    // _signature: todo 这里的签名 必须是 note的owner的签名
     function confidentialApprove(
         bytes32 _noteHash,
         address _spender,
         bool _spenderApproval,
         bytes memory _signature
     ) public {
+
+        // 先查询 当前note 的状态
         ( uint8 status, , , ) = ace.getNote(address(this), _noteHash);
         require(status == 1, "only unspent notes can be approved");
 
+
+        // 计算 签名Hash
         bytes32 signatureHash = keccak256(abi.encodePacked(_signature));
+        // 校验 是否重放
         require(signatureLog[signatureHash] != true, "signature has already been used");
+
         // Only need to prevent replay from calls where msg.sender isn't owner of note.
+        //
+        // 只需要防止msg.sender不是note所有者的调用重放。
         if (_signature.length != 0) {
             signatureLog[signatureHash] = true;
         }
+
+
 
         // hashStruct(s : 𝕊) = keccak256(typeHash ‖ encodeData(s)) ，
         // 其中 typeHash = keccak256(encodeType(typeOf(s)))
@@ -277,7 +299,10 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
                 _spenderApproval
         ));
 
+        // todo 校验签名中的 signer 要么是 该note的owner, 或者是 当前 msg.sender是 该note的owner
+        // todo 只有这两种情况才可以动用 note
         validateSignature(_hashStruct, _noteHash, _signature);
+        // todo 开始 做对当前 note的第三方addr花费授权
         confidentialApproved[_noteHash][_spender] = _spenderApproval;
     }
 
@@ -292,7 +317,7 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
      * @param _proofSignature - ECDSA signature over the proof, approving it to be spent
      */
 
-    // TODO 批准 第三者对 note 进行花费的证明
+    // TODO 批准 第三者对 notes 进行花费的证明   ##################### 批量授权
     //
     // note 所有者 可以批准第三方地址（例如智能合约）来代表他们花费 note。
     // 这允许对 notes 执行批处理批准，而不是通过 confidentialApprove() 对每个 note 进行单独批准。
@@ -398,16 +423,20 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param _noteHash - keccak256 hash of the note coordinates (gamma and sigma)
     * @param _signature - ECDSA signature for a particular input note
     */
-    // 对输入便笺上的签名执行ECDSA签名验证
+    // 对 input note 上的签名执行ECDSA签名验证 todo (使用 EIP712 签名规范)
     //
     function validateSignature(
         bytes32 _hashStruct,
         bytes32 _noteHash,
         bytes memory _signature
     ) internal view {
+
+        // 根据 noteHash 取出 note owner
         (, , , address noteOwner ) = ace.getNote(address(this), _noteHash);
 
         address signer;
+
+        // 如果有 签名, 则校验签名者是否 是note的 owner
         if (_signature.length != 0) {
             // validate EIP712 signature
             bytes32 msgHash = hashEIP712Message(_hashStruct);
@@ -415,9 +444,12 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
                 msgHash,
                 _signature
             );
-        } else {
+        } else { // 否则, 没有签名的话, 则校验当前 交易发送者是否 是 note 的 owner
             signer = msg.sender;
         }
+
+        // 校验 是否是 该note 的owner
+        // todo 校验不通过, 则 交易state会被回滚
         require(signer == noteOwner, "the note owner did not sign this message");
     }
 
@@ -427,9 +459,16 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param _signatures - array of ECDSA signatures over all inputNotes
     * @param _i - index used to determine which signature element is desired
     */
+
+    // 从签名数组中提取适当的ECDSA签名
+    //
+    // _signatures: 所有的 input notes 的ECDSA签名数组
+    // i: 用于提取所需签名元素的索引
     function extractSignature(bytes memory _signatures, uint _i) internal pure returns (
         bytes memory _signature
     ){
+
+        // 签名中的, R, S, V
         bytes32 r;
         bytes32 s;
         uint8 v;
@@ -444,13 +483,24 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
             // and so on...
             // Length of a signature = 0x41
 
+            // 在memory中签名数据的布局
+            // 0x00 - 0x20 : 签名数组的长度
+            // 0x20 - 0x40 : 第一个签名的R
+            // 0x40 - 0x60 : 第一个签名的S
+            // 0x61 - 0x62 : 第一个签名的V
+            // 0x62 - 0x82 : 第二个签名的R
+            // 以此类推 ...
+            // 每个签名长度= 0x41 (65byte)
+
             let sigLength := 0x41
 
+            // 按照索引偏移量, 对应索引的签名的提取 R, S, V
             r := mload(add(add(_signatures, 0x20), mul(_i, sigLength)))
             s := mload(add(add(_signatures, 0x40), mul(_i, sigLength)))
             v := mload(add(add(_signatures, 0x41), mul(_i, sigLength)))
         }
 
+        // 根据 R, S, V 重装出 签名
         _signature = abi.encodePacked(r, s, v);
     }
 
@@ -527,10 +577,10 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     // _proofData: 从证明构造操作(这部分是链下做的, js的库)输出的 加密 proof数据
 
     function confidentialTransferInternal(
-        uint24 _proofId,
-        bytes memory proofOutputs,
-        bytes memory _signatures,
-        bytes memory _proofData
+        uint24 _proofId,          //
+        bytes memory proofOutputs,// 多个 proofOutput集
+        bytes memory _signatures, // 多个签名的集 (对应 input notes的数目, 每一个 proofOutput 中都有一组 input notes)
+        bytes memory _proofData   //
     ) internal {
 
         // 取出 _challenge, todo 这里面到底放的是什么啊? 语义为挑战,提议, 难道是 salt ?
@@ -544,22 +594,31 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
 
             // 逐个处理 每一个 proofOutput 中的 一组 input notes 和 output notes
             bytes memory proofOutput = proofOutputs.get(i);
+            // todo 更新 note 注册表信息
+            // todo 主要是更新 input notes 和 output notes
             ace.updateNoteRegistry(_proofId, proofOutput, address(this));
 
 
-            //
+            // 解出当前 proofOutput 中的 input notes, output notes, publicOwner, publicValue
             (bytes memory inputNotes,
             bytes memory outputNotes,
             address publicOwner,
             int256 publicValue) = proofOutput.extractProofOutput();
 
-
+            // 如果有 input notes 则, 遍历 input notes
             if (inputNotes.getLength() > uint(0)) {
                 for (uint j = 0; j < inputNotes.getLength(); j += 1) {
+
+                    // 根据 input notes 的索引, 取出对应的  input notes 的签名
+                    //
+                    // todo  疑问, 我们有多个 proofOutput, 每个 proofOutput 中又有多个input notes
+                    // todo  那么, 这样纸取 索引的话, 说明,每个 proofOutput 中的 input notes 个数必须是一样的 ...
                     bytes memory _signature = extractSignature(_signatures, j);
 
+                    // 组个 获取 input note Hash
                     (, bytes32 noteHash, ) = inputNotes.get(j).extractNote();
 
+                    // 计算 hashStruct
                     bytes32 hashStruct = keccak256(abi.encode(
                         JOIN_SPLIT_SIGNATURE_TYPE_HASH,
                         _proofId,
@@ -568,16 +627,27 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
                         msg.sender
                     ));
 
+                    // 主要校验 input note 的签名者或者本次交易的msg.sender是否为 该 input note的 owner
                     validateSignature(hashStruct, noteHash, _signature);
                 }
             }
 
-            logInputNotes(inputNotes);
-            logOutputNotes(outputNotes);
+
+            // 该笔 proofOutput 的所有 input notes 校验过了, todo 则就是真正花费 input notes 生成 output notes
+
+            // 将这些事情记录到 event 中
+            logInputNotes(inputNotes);    // 这个就只是简单的记录销毁 event
+            logOutputNotes(outputNotes);  // 这个记录创建event, 还有提取和记录当前note的所有被批准花费的地址 approvedAddress
+
+            // 下面这个只有 mint 和 burn 的时候才会有
             if (publicValue < 0) {
+
+                // 转换token event, 发生 mint的时候
                 emit ConvertTokens(publicOwner, uint256(-publicValue));
             }
             if (publicValue > 0) {
+
+                // 赎回token event, 发生 burn的时候
                 emit RedeemTokens(publicOwner, uint256(publicValue));
             }
 
@@ -612,6 +682,8 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @dev Set the metaDataTimeLog mapping
     * @param noteHash - hash of a note, used as a unique identifier for the note
     */
+    //
+    // 记录当前 note 的createTime
     function setMetaDataTimeLog(bytes32 noteHash) internal {
         metaDataTimeLog[noteHash] = block.timestamp;
     }
@@ -622,6 +694,10 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param metaData - metaData of a note, which contains addresses to be approved
     * @param noteHash - hash of an AZTEC note, a unique identifier of the note
     */
+    // todo 将批准的地址添加到 noteAccess map和 已批准的地址的全局集合中
+    //
+    // metaData: note 的metaData，其中包含要批准的地址
+    // noteHash: AZTEC note的Hash，note的唯一标识符
     function approveAddresses(bytes memory metaData, bytes32 noteHash) internal {
         /**
         * Memory map of metaData
@@ -635,18 +711,49 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         * (0xe1 + L_addresses + L_encryptedViewKeys) - (0xe1 + L_addresses + L_encryptedViewKeys + L_appData) : appData
         */
 
+        // 在memory中的 metadata 的数据布局
+        // 0x00 - 0x20 :  metaData 的总长度 (多少字节)                ------32byte
+        // 0x20 - 0x81 :  ephemeral key (临时秘钥) todo 干嘛的???     ------32byte
+        // 0x81 - 0xa1 :  被批准的 addr 集的起始位置                  ------32byte
+        // 0xa1 - 0xc1 :  encrypted view key 集的起始位置 (用来查看 note 中的 金额的 view key, 但是不能花费其中的金额)
+        // 0xc1 - 0xe1 :  app data 的起始位置, todo app的数据 ?
+        // 0xe1 - L_addresses : 被批准的 addr 集 数据
+        // (0xe1 + L_addresses) - (0xe1 + L_addresses + L_encryptedViewKeys) : encrypted view key 集 数据
+        // (0xe1 + L_addresses + L_encryptedViewKeys) - (0xe1 + L_addresses + L_encryptedViewKeys + L_appData) : appData
+
+        // TODO 注意: L_addresses, 表示 addrCount, addr1, addr2, ..., addrN
+        // TODO 参考 MetaDataUtils.extractAddress() 中的注释就明白了
+
+
         bytes32 metaDataLength;
         bytes32 numAddresses;
         assembly {
+
+            // 获得整个 metaData的长度
             metaDataLength := mload(metaData)
+
+            // 获得 0xe1 起始处存储的第一个 32byte, 其内容不是 Addr而是 addr的数目
             numAddresses := mload(add(metaData, 0xe1))
         }
 
         // if customData has been set, approve the relevant addresses
-        if (uint256(metaDataLength) > 0x61) {
+        //
+        // 如果已设置customData，请批准相关地址
+        //
+        // todo uint256(metaDataLength) > 0x61 这是一个很粗的 判断
+        if (uint256(metaDataLength) > 0x61) { // 0x61 == 97, 说明 metaData 的长度已经超过 97 byte 说明, todo 入参的 metaData 中肯定是指定了 被批准addr的
+
+
+            // 根据 approved addr 的数目进行 for, 逐个提取出在 当前 note metadata中的 被批准地址 approvedAddr
             for (uint256 i = 0; i < uint256(numAddresses); i += 1) {
+
+                // 根据 索引取出 metadata中的 approvedAddr
                 address extractedAddress = MetaDataUtils.extractAddress(metaData, i);
+
+                // 计算 addrId
                 bytes32 addressID = keccak256(abi.encodePacked(extractedAddress, noteHash));
+
+                // 记录 note 和 被批准地址, 及当前block时间
                 noteAccess[addressID] = block.timestamp;
             }
         }
@@ -659,9 +766,18 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     *
     * @param inputNotes - input notes being destroyed and removed from note registry state
     */
+    // todo 发出所有 input notes 的event，这些event表示 note 被销毁并从 note注册表中删除
+    //
+    // inputNotes: input notes 被销毁并从 note注册表 state中删除
     function logInputNotes(bytes memory inputNotes) internal {
+
+        // 逐个遍历 input notes
         for (uint i = 0; i < inputNotes.getLength(); i += 1) {
+
+            // 提取出 owner 和 Hash
             (address noteOwner, bytes32 noteHash, ) = inputNotes.get(i).extractNote();
+
+            // 记录 event
             emit DestroyNote(noteOwner, noteHash);
         }
     }
@@ -672,11 +788,24 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     *
     * @param outputNotes - outputNotes being created and added to note registry state
     */
+    // todo 为所有 output notes 发出 event，这些event表示正在创建并添加到 note注册表的 note
+    //
+    // outputNotes: 正在创建 outputNotes 并将其添加到note注册表状态
     function logOutputNotes(bytes memory outputNotes) internal {
+
+        // 逐个遍历 output notes
         for (uint i = 0; i < outputNotes.getLength(); i += 1) {
+
+            // 提取 output note 的 owner, hash, metadata
             (address noteOwner, bytes32 noteHash, bytes memory metaData) = outputNotes.get(i).extractNote();
+
+            // 记录 note 创建时的时间戳, 取 block.timestamp
             setMetaDataTimeLog(noteHash);
+
+            // 提取和记录当前note的所有被批准花费的地址 approvedAddress
             approveAddresses(metaData, noteHash);
+
+            // 记录创建 note 的event
             emit CreateNote(noteOwner, noteHash, metaData);
         }
     }

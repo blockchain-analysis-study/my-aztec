@@ -79,7 +79,7 @@ contract LibEIP712 {
     /// @param _hashStruct The EIP712 hash struct.
     /// @return EIP712 hash applied to this EIP712 Domain.
     //
-    // 计算此EIP712域中哈希结构的EIP712编码
+    // todo 计算此EIP712域中哈希结构的EIP712编码
     // 
     // 入参: 
     // _hashStruct: EIP712哈希结构
@@ -100,7 +100,7 @@ contract LibEIP712 {
         //     hashStruct
         // ));
 
-        // 使用 Assembly 以提升计算效率
+        // todo 使用 Assembly 以提升计算效率
         //
         // keccak256(abi.encodePacked(
         //     EIP191_HEADER,
