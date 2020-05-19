@@ -126,7 +126,7 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
 
     mapping(bytes32 => mapping(address => bool)) public confidentialApproved;
 
-    // 记录 note 创建的 时间
+    // 记录 note 创建的 时间 | note的metadata更新时间
     // (noteHash => createTime), 其中 createTime 是 取自当前 block的 timestamp
     mapping(bytes32 => uint256) public metaDataTimeLog;
 
@@ -704,20 +704,34 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     // TODO ##############################################    我擦, 这操作不严谨吧?? 或者说会在 添加授权addr时,做的事??
     function updateNoteMetaData(bytes32 noteHash, bytes memory metaData) public {
         // Get the note from this assets registry
+        //
+        // 从此资产注册表获取 note
         ( uint8 status, , , address noteOwner ) = ace.getNote(address(this), noteHash);
 
         bytes32 addressID = keccak256(abi.encodePacked(msg.sender, noteHash));
         require(
+            // todo 只有两种身份的人可以 变更note信息
+            //  一、note 被授权给msg.sender的事件必须 晚于 note 被创建的时间 (有效的被授权的人)
+            //  二、note的拥有者
+            //
+            // 另外, note需要时有效的
             (noteAccess[addressID] >= metaDataTimeLog[noteHash] || noteOwner == msg.sender) && status == 1,
             'caller does not have permission to update metaData'
         );
 
         // Approve the addresses in the note metaData
+        //
+        // 重新处理下新的 metadata 中的 approved addr 集
+        //
+        // todo 问题, 那旧的 metadata 中的 approved addr集怎么处理呢？ 不需要清除？？
         approveAddresses(metaData, noteHash);
 
         // Set the metaDataTimeLog to the latest block time
+        //
+        // 将metaDataTimeLog设置为最新的块时间
         setMetaDataTimeLog(noteHash);
 
+        // 记录更新 note 的 metadata的 event
         emit UpdateNoteMetaData(noteOwner, noteHash, metaData);
     }
 
@@ -726,7 +740,7 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param noteHash - hash of a note, used as a unique identifier for the note
     */
     //
-    // 记录当前 note 的createTime
+    // 记录当前 note 的createTime | note的metadata更新时间
     function setMetaDataTimeLog(bytes32 noteHash) internal {
         metaDataTimeLog[noteHash] = block.timestamp;
     }
