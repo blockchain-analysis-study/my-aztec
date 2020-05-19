@@ -194,8 +194,10 @@ contract Behaviour201907 is NoteRegistryBehaviour {
         require(registry.canAdjustSupply == true, "this asset is not mintable");
     }
 
-
-    // 根据已成功 验证的输出 (_proofOutputs) ，执行所需的状态修改.
+    // todo 更新 note注册表中的某些note??
+    // 单个 proofOutput 中包含一组 input notes 和 output notes
+    //
+    // 根据已成功 验证的输出 (_proofOutput) ，执行所需的状态修改.
     // 
     // 当前行为合同使用 _proofId 参数来（如果需要）限制 note 注册表支持的 proof 版本，
     // 例如，在proofOutputs模式发生更改时很有用.

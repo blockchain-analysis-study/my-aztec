@@ -236,13 +236,15 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     // 
     // todo: 说白了，这个就是ACE 指派proof合约对数据进行 证明
     // 只有校验通过的 _proofOutput 才可以进行操作 input 和output 的变更, _proofOutput 包含inputs和outputs
+    //
+    // todo 参数中的 sender 貌似在 func 中没用
     function validateProof(uint24 _proof, address _sender, bytes calldata) external returns (bytes memory) {
         require(_proof != 0, "expected the proof to be valid");
         // validate that the provided _proof object maps to a corresponding validator and also that
         // the validator is not disabled
         //
         // 验证提供的_proof对象是否映射到相应的验证器，并且验证器未禁用
-        // (就是 根据 proof 去statedb查回对应的 proof合约地址)
+        // todo (就是 根据 proof 去statedb查回对应的 proof合约地址)
         address validatorAddress = getValidatorAddress(_proof);
 
         // 用于接收 返回参数
@@ -301,19 +303,20 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
             // 计算 call 的入参数据的偏移位置 0x104 == 260
             let callSize := add(proofDataSize, 0x104)
 
-            // 发起 static 跨合约调用, 调用 对应的proof 合约 生成 proofOutput (这里面就包含了生成的 inputs 和 outputs) 
+            // todo 发起 static 跨合约调用, 调用 对应的proof 合约 生成 proofOutput (这里面就包含了生成的 inputs 和 outputs)
             //
-            // 使用静态调用 成功是1, 失败是0
+            // todo 使用静态调用 成功是1, 失败是0
             switch staticcall(gas, validatorAddress, memPtr, callSize, 0x00, 0x00)
             case 0 {
                 // call失败，因为证据无效
+                // todo 注意, 这里证明失败了是会调用  revert 终止交易, state会被回滚, 扣除执行到停止时的gas
                 mstore(0x00, 400) revert(0x00, 0x20) // call failed because proof is invalid
             }
 
             // copy returndata to memory
             // 将returndata复制到内存
             // returndatacopy(memOffset, dataOffset, length)
-            returndatacopy(memPtr, 0x00, returndatasize) // TODO returndatasize 是怎么来的?
+            returndatacopy(memPtr, 0x00, returndatasize) // TODO returndatasize 是 assembly 中的固定语法, 查看solidity内联汇编的语法
             // store the proof outputs in memory
             // 将校样输出存储在内存中
             mstore(0x40, add(memPtr, returndatasize))
@@ -356,6 +359,8 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
                 validatedProofs[validatedProofHash] = true;
             }
         }
+
+        // todo 返回被 proof合约对 proofData数据进行验证且解析出来的 proofOutputs
         return proofOutputs;
     }
 

@@ -11,6 +11,7 @@ import "../../libs/LibEIP712.sol";
 import "../../libs/MetaDataUtils.sol";
 import "../../libs/ProofUtils.sol";
 import "..\..\test\libs\NoteUtilsTest.sol";
+import "..\..\ACE\ACE.sol";
 
 /**
  * @title ZkAssetBase
@@ -120,7 +121,7 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
 
     mapping(bytes32 => uint256) public metaDataTimeLog;
 
-    
+
     mapping(bytes32 => uint256) public noteAccess;
 
     // 记录所有的 签名, 做去重 防双花 防重放
@@ -128,11 +129,14 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     // (signatureHash => bool), 其中 signatureHash = keccak256(_proofSignature)
     mapping(bytes32 => bool) public signatureLog;
 
+
+
+    // 构造函数
     constructor(
-        address _aceAddress,
-        address _linkedTokenAddress,
-        uint256 _scalingFactor,
-        bool _canAdjustSupply
+        address _aceAddress, // 指定 ACE 合约地址
+        address _linkedTokenAddress, // 指定ERC20 合约地址
+        uint256 _scalingFactor, // token 和 加密币 的转换 比例
+        bool _canAdjustSupply // 是否支持 mint 和 burn 等转换操作
     ) public {
 
         // 根据 ERC20 的地址是否为 空, 确定是否可以做 转换动作
@@ -154,6 +158,10 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
 
         // 实例化, 某个ERC20 合约实例
         linkedToken = IERC20Mintable(_linkedTokenAddress);
+
+        // todo 实际上是调用了, (ACE => NoteRegistryManager的 createNoteRegistry() 函数)
+        //
+        // 每一个 ZKAssetBase 合约的创建, 都会往ACE 的 registries 中注册一个对应 NoteRegistry 信息
         ace.createNoteRegistry(
             _linkedTokenAddress,
             _scalingFactor,
@@ -165,7 +173,7 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         emit CreateZkAsset(
             _aceAddress,
             _linkedTokenAddress,
-            _scalingFactor,
+            _scalingFactor, // token 和 加密币 的转换 比例
             _canAdjustSupply,
             canConvert
         );
@@ -198,9 +206,13 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         (, uint8 category, ) = _proofId.getProofComponents();
 
         // 如果 proof 的category只能是 balaced 类型
+        // todo 隐私币之间的 资产转移, 需要满足 BALANCED(平衡), 100 + 50 (input notes) == 90 + 20 + 40 (output notes)
         require(category == uint8(ProofCategory.BALANCED), "this is not a balanced proof");
-        //
-        bytes memory proofOutputs = ace.validateProof(_proofId, msg.sender, _proofData);
+
+        // todo 这个就是ACE 指派proof合约对 proofData进行校验证明且解析出 proofOutputs
+        bytes memory proofOutputs = ace.validateProof(_proofId, msg.sender, _proofData); // todo msg.sender 在func中貌似没用到
+
+        // 调用 隐私交易的 内部函数, 继续处理逻辑
         confidentialTransferInternal(_proofId, proofOutputs, _signatures, _proofData);
     }
 
@@ -500,21 +512,42 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param _proofData - cryptographic proof data outputted from a proof construction
     * operation
     */
+
+    // todo 从成功的证明验证开始对 transfer 执行操作的内部方法。
+    // 具体来说，它：
+    // -从证明输出对象(proofOutput object)中提取相关对象
+    // -验证每个 input note 上的EIP712签名
+    // -更新 note 注册表状态
+    // -发出 创建/销毁 note 的 event
+    // -根据 publicValue 转换或兑换 token
+    //
+    // _proofId: 产生_proofData的 proof三元组信息 (很多时候直接称之为 proofId, 原因是, 该三元组可以直接标识某个 proof合约)
+    // proofOutputs: 从零知识proof验证合约中 解析proofData得出来的 proofOutputs
+    // _signatures: 一组 input notes 上的 ECDSA 签名
+    // _proofData: 从证明构造操作(这部分是链下做的, js的库)输出的 加密 proof数据
+
     function confidentialTransferInternal(
         uint24 _proofId,
         bytes memory proofOutputs,
         bytes memory _signatures,
         bytes memory _proofData
     ) internal {
+
+        // 取出 _challenge, todo 这里面到底放的是什么啊? 语义为挑战,提议, 难道是 salt ?
         bytes32 _challenge;
         assembly {
             _challenge := mload(add(_proofData, 0x40))
         }
 
+        // 遍历 proofOutputs
         for (uint i = 0; i < proofOutputs.getLength(); i += 1) {
+
+            // 逐个处理 每一个 proofOutput 中的 一组 input notes 和 output notes
             bytes memory proofOutput = proofOutputs.get(i);
             ace.updateNoteRegistry(_proofId, proofOutput, address(this));
 
+
+            //
             (bytes memory inputNotes,
             bytes memory outputNotes,
             address publicOwner,

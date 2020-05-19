@@ -328,7 +328,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     // _canAdjustSupply: noteRegistry是否可以使用【mint】和 【burn】
     // _canConvert: noteRegistry是否可以将 【价值从私人代表转移到公共代表，反之亦然】
     //
-    // TODO 这个方法由 ZKAssetBase 发起调用
+    // TODO 这个方法由 ZKAssetBase 的构造函数发起调用
     function createNoteRegistry(
         address _linkedTokenAddress,
         uint256 _scalingFactor,
@@ -593,7 +593,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
             // 将剩余被批准可使用的 数目减去 本次铸币时消耗的数目
             registry.publicApprovals[_publicOwner][_proofHash] = approvalForAddressForHash.sub(uint256(-_publicValue));
             
-            // 让 owner 往当前合约转 _transferValue  public token
+            // todo 让 owner 往当前合约转 _transferValue  public token
             registry.linkedToken.transferFrom(
                 _publicOwner,
                 address(this),
@@ -605,7 +605,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
              // 将本次 加密币 -> token 的 token 数量叠加记录到 note注册表信息的 totalSupply 字段
             registry.totalSupply = registry.totalSupply.sub(uint256(_publicValue));
 
-            // 当前 合约 转 _transferValue 到 _publicOwner 合约
+            // todo 当前 合约 转 _transferValue 到 _publicOwner 合约
             registry.linkedToken.transfer(
                 _publicOwner,
                 _transferValue
@@ -626,7 +626,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     // 此方法将验证相关证明是否已通过验证，确保相同的证明不能重复使用，然后将其委托给相关的 note.
     //
     // _proof: 证明的唯一标识符
-    // _proofOutput: 零知识证明发出的转移指令
+    // _proofOutput: 零知识证明发出的转移指令 (这里面包含一组 input notes 和 output notes)
     // _proofSender: 发送证明的实体的地址 (在ACE的 validateProof() 函数中生成 validatedProofHash 的sender, 一般是某个 ZKAsset合约)
     function updateNoteRegistry(
         uint24 _proof,
@@ -675,6 +675,8 @@ contract NoteRegistryManager is IAZTEC, Ownable {
         // ================================= 
         // ================================= 
         if (publicValue != 0) {
+
+            // todo  涉及到了 隐私合约和 ERC20 token 合约间的 资产转移
             transferPublicTokens(publicOwner, transferValue, publicValue, proofHash);
         }
     }
