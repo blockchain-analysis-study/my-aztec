@@ -10,6 +10,7 @@ import "../../interfaces/IERC20Mintable.sol";
 import "../../libs/LibEIP712.sol";
 import "../../libs/MetaDataUtils.sol";
 import "../../libs/ProofUtils.sol";
+import "..\..\test\libs\NoteUtilsTest.sol";
 
 /**
  * @title ZkAssetBase
@@ -111,9 +112,20 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
 
 
     // 存放 保密交易的 许可(approve)
+    //
+    // (proofOutputHash => (被批准可以花费note的addr => 是否被授权, true: 是, false: 否))
+    // 其中, proofOutputHash = keccak256(proofOutput)
     mapping(bytes32 => mapping(address => bool)) public confidentialApproved;
+
+
     mapping(bytes32 => uint256) public metaDataTimeLog;
+
+    
     mapping(bytes32 => uint256) public noteAccess;
+
+    // 记录所有的 签名, 做去重 防双花 防重放
+    //
+    // (signatureHash => bool), 其中 signatureHash = keccak256(_proofSignature)
     mapping(bytes32 => bool) public signatureLog;
 
     constructor(
@@ -267,6 +279,17 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
      * @param _spender - address being approved to spend the notes
      * @param _proofSignature - ECDSA signature over the proof, approving it to be spent
      */
+
+    // TODO 批准 第三者对 note 进行花费的证明
+    //
+    // note 所有者 可以批准第三方地址（例如智能合约）来代表他们花费 note。
+    // 这允许对 notes 执行批处理批准，而不是通过 confidentialApprove() 对每个 note 进行单独批准。
+    //
+    // _proofId: 待批准的证明编号。 需要成为平衡的证明
+    // _proofOutputs: 证明数据
+    // _spender: 被批准可以花费note的地址
+    // _proofSignature: 在proof上的ECDSA签名，批准将其花费
+    //
     function approveProof(
         uint24 _proofId,
         bytes calldata _proofOutputs,
@@ -274,13 +297,17 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
         bool _approval,
         bytes calldata _proofSignature
     ) external {
+
         // Prevent possible replay attacks
+        //
+        // 防止可能的重放攻击
         bytes32 signatureHash = keccak256(_proofSignature);
         require(signatureLog[signatureHash] != true, "signature has already been used");
         signatureLog[signatureHash] = true;
 
 
-        // 其实这个就是 EIP712 标准中的 hashIdentity
+        // 其实这个就是 定义域分隔符的哈希值 domainSeparator
+        // 下面的 hashBid 会用到
         bytes32 DOMAIN_SEPARATOR = keccak256(abi.encode(
             EIP712_DOMAIN_TYPEHASH,
             keccak256("ZK_ASSET"),
@@ -311,23 +338,43 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
             ))
         ));
 
+        // 通过 hashBid 和 Signature 解析出 签名者
         address signer = recoverSignature(
             msgHash,
             _proofSignature
         );
 
-        for (uint i = 0; i < _proofOutputs.getLength(); i += 1) {
-            bytes memory proofOutput = _proofOutputs.get(i);
 
+        // 遍历 proofOutputs
+        for (uint i = 0; i < _proofOutputs.getLength(); i += 1) {
+
+            // 逐个 拿出 proofOutput 中的  input notes
+            bytes memory proofOutput = _proofOutputs.get(i);
+            //
+            // todo 为什么这里只拿 input notes ?
+            // todo 因为, 交易中的(proofOutput中的) input notes 就是之前某些 未花费输出 output notes ？？ 是这么解释么 ？？
             (bytes memory inputNotes,,,) = proofOutput.extractProofOutput();
 
+            // 逐个遍历 input notes
             for (uint256 j = 0; j < inputNotes.getLength(); j += 1) {
+
+                // owner, noteHash, metadata
                 (, bytes32 noteHash, ) = inputNotes.get(j).extractNote();
+
+                // 根据 noteHash 去获取对应的 note (先是 ACE => NoteRegistryManager => behaviour201907 中获取 note信息)
+                //
+                // status, createOn, destroyedOn, owner
                 ( uint8 status, , , address noteOwner ) = ace.getNote(address(this), noteHash);
+
+                // 只有 未花费的 note 才可以被 授权批准
                 require(status == 1, "only unspent notes can be approved");
+
+                // 只有 proof中的 signer 是 note的owner时，该 note才可以被批准
                 require(noteOwner == signer, "the note owner did not sign this proof");
             }
 
+
+            // todo 对单个 note 给予 spender 可以花费的证明 (还是需要看, _approval 的值是 true 还是 false)
             confidentialApproved[keccak256(proofOutput)][_spender] = _approval;
         }
     }

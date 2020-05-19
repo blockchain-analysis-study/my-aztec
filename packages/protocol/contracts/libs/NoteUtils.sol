@@ -28,12 +28,19 @@ library NoteUtils {
     * @param _proofOutputsOrNotes `proofOutputs`, `inputNotes` or `outputNotes`
     * @return number of entries in the pseudo dynamic array
     */
+    //
+    // 返回 proofOutputs 中的数据长度
+    //
+    // todo 注意, len被放到了 第一个 字节
     function getLength(bytes memory _proofOutputsOrNotes) internal pure returns (
         uint len
     ) {
         assembly {
             // first word = the raw byte length
             // second word = the actual number of entries (hence the 0x20 offset)
+
+            // 第一个 byte = 数据的总长度
+            // 第二个 byte = 实际条目数（因此偏移为0x20）
             len := mload(add(_proofOutputsOrNotes, 0x20))
         }
     }
@@ -125,6 +132,9 @@ library NoteUtils {
     * @param _proofOutput bytes proofOutput, outputted from a proof validation smart contract
     * @return bytes32 challenge - cryptographic variable that is part of the sigma protocol
     */
+
+    // 从字节的proofOutput变量中提取 challenge
+    //
     function extractChallenge(bytes memory _proofOutput) internal pure returns (
         bytes32 challenge
     ) {
@@ -156,8 +166,8 @@ library NoteUtils {
     ) {
         assembly {
             // memory map of a note:
-            // 0x00 - 0x20 : byte length of note // note的自身长度为, [0x00 - 0x20) 
-            // 0x20 - 0x40 : note type // note 类型 存放索引为, [0x20 - 0x40)
+            // 0x00 - 0x20 : byte length of note // note数据的总长度为, [0x00 - 0x20)
+            // 0x20 - 0x40 : note type // note 类型, 存放索引为, [0x20 - 0x40)
             // 0x40 - 0x60 : owner // owner 的存放索引为, [0x40 - 0x60)
             // 0x60 - 0x80 : noteHash // note的Hash 存放索引为, [0x60 - 0x80)
             // 0x80 - 0xa0 : start of metadata byte array // 其他 note 的元数据 存放索引为, [0x80 - 0xa0)
