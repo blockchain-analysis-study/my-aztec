@@ -108,7 +108,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     // 返参:
     // 两个“字节”对象。 第一个包含新的ConfidentialTotalSupply note，第二个包含已创建的 note。
     // 返回，以便zkAsset可以发出适当(appropriate)的事件 
-    function mint(
+    function mint( // todo 忽然发现 mint时是不产生 note 的??
          // 证明
         uint24 _proof,
         // 需要证明的 数据
@@ -238,6 +238,8 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     // 只有校验通过的 _proofOutput 才可以进行操作 input 和output 的变更, _proofOutput 包含inputs和outputs
     //
     // todo 参数中的 sender 貌似在 func 中没用
+    //
+    // TODO 不管是 Mint 还是 Burn 还是 Transfer, 都是在 一进来就调这个来证明, 只有证明了的 proofOutput 才可以被花费
     function validateProof(uint24 _proof, address _sender, bytes calldata) external returns (bytes memory) {
         require(_proof != 0, "expected the proof to be valid");
         // validate that the provided _proof object maps to a corresponding validator and also that
@@ -346,7 +348,11 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
                 bytes32 proofHash = keccak256(proofOutputs.get(i));
 
                 // 根据proofHash 和当前 msg.sender 算出 proofHash的校验标识key
-                bytes32 validatedProofHash = keccak256(abi.encode(proofHash, _proof, msg.sender)); // 这里的, msg.sender 可能是 某个ZKAsset合约地址哦, 方法入参的 _sender 可能是真正交易的sender呢
+                bytes32 validatedProofHash = keccak256(abi.encode(proofHash, _proof, msg.sender)); // todo mint 和 burn 时,这个是个账户, transfer() 时就是个ZKAsset合约
+                // todo  mint()和 burn()的时候, msg.sender 是某个人的 账户
+                // todo  confidentialTransfer() 的时候,msg.sender是ZKAsset合约地址
+
+
 
                 // =================================================== 
                 // ===================== 超级重要 =====================
@@ -457,7 +463,7 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
     function validateProofByHash(
         uint24 _proof, // 证明
         bytes32 _proofHash, // 证明的Hash
-        address _sender // 交易发起者? 
+        address _sender // 本次过来 花费 当前 note的账户 todo 这里如果是 confidentialTransfer()传过来的是 ZKAsset合约, confidentialTransferFrom() 过来的是 某个账户
     ) public view returns (bool) {
         // We need create a unique encoding of _proof, _proofHash and _sender,
         // and use as a key to access validatedProofs
@@ -557,6 +563,8 @@ contract ACE is IAZTEC, Ownable, NoteRegistryManager {
             mstore(0x00, _proofHash)
             mstore(0x20, _proof)
             mstore(0x40, _sender)
+
+            // 用上面三者, 计算出 validatedProofHash
             validatedProofHash := keccak256(0x00, 0x60)
             // 恢复可用内存指针
             mstore(0x40, memPtr) // restore the free memory pointer

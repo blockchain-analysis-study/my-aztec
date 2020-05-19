@@ -114,8 +114,16 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
 
     // todo 存放 某些note可以花费的被授权addr
     //
-    // (proofOutputHash => (被授权可以花费note的addr => 是否被授权, true: 是, false: 否))
-    // 其中, proofOutputHash = keccak256(proofOutput)
+    // 这个东西设计的很有意思, 为什么存放两种东西??
+    // todo 单个授权函数, confidentialApprove() 放的东西是：
+    // todo     (noteHash => (被授权可以花费note的addr => 是否被授权, true: 是, false: 否))
+
+    // todo 批量授权函数, approveProof() 放的东西是：
+    // todo     (proofOutputHash => (被授权可以花费note的addr => 是否被授权, true: 是, false: 否))
+    // todo     其中, proofOutputHash = keccak256(proofOutput)
+
+    // TODO 为什么 proofOutputHash 和 noteHash 混着放到这里面来?? 设计的意义??
+
     mapping(bytes32 => mapping(address => bool)) public confidentialApproved;
 
     // 记录 note 创建的 时间
@@ -317,6 +325,8 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
      * @param _proofSignature - ECDSA signature over the proof, approving it to be spent
      */
 
+    // todo ########################## 不知道这个函数 啥时候用 ...
+    //
     // TODO 批准 第三者对 notes 进行花费的证明   ##################### 批量授权
     //
     // note 所有者 可以批准第三方地址（例如智能合约）来代表他们花费 note。
@@ -515,34 +525,60 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param _proofOutput - output of a zero-knowledge proof validation contract. Represents
     * transfer instructions for the IACE
     */
+
+    // todo 委派转移资产
+    //
+    // TODO #################### 看了里面的实现后, 开始不明白这个做什么的, 可能是 对 mint 和 burn 产生的 proofOutput 做消费吧
+    //
+    // 执行以智能合约为中介的价值转移。
+    // 该方法提供有 transfer 指令，该transfer指令由从 proof验证合同输出的字节_proofOutput 参数表示。
+    //
+    // todo from  who ?? from  msg.sender ??
     function confidentialTransferFrom(uint24 _proof, bytes memory _proofOutput) public {
+
+        // 根据 proofOutput 提取出对应的一组 input notes 和 output notes 和 publicValue 及 publicOwner
         (bytes memory inputNotes,
         bytes memory outputNotes,
         address publicOwner,
         int256 publicValue) = _proofOutput.extractProofOutput();
 
+        // 计算出当前 proofOutput的Hash
         bytes32 proofHash = keccak256(_proofOutput);
 
+        // todo 先校验下 _proofOutputHash 是否被授权 ?
         if (confidentialApproved[proofHash][msg.sender] != true) {
             uint256 length = inputNotes.getLength();
             for (uint i = 0; i < length; i += 1) {
                 (, bytes32 noteHash, ) = inputNotes.get(i).extractNote();
                 require(
+
+                    // todo 再校验下 noteHash 是否被授权 ?
                     confidentialApproved[noteHash][msg.sender] == true,
                     "sender does not have approval to spend input note"
                 );
             }
         }
 
+
+        // todo 授权校验 通过时, 更新 note 注册表中的 input notes 和 output notes
+        // todo 最终 (ACE => NoteRegistryManager)
+        // todo 在 NoteRegistryManager.updateNoteRegistry() 中的注释可以,
+        // todo 其实当前func只能是消费 mint 或者 burn时的 msg.sender 的 proofOutput
         ace.updateNoteRegistry(_proof, _proofOutput, msg.sender);
 
-        logInputNotes(inputNotes);
-        logOutputNotes(outputNotes);
+        // 将这些事情记录到 event 中
+        logInputNotes(inputNotes);      // 这个就只是简单的记录销毁 event
+        logOutputNotes(outputNotes);    // 这个记录创建event, 还有提取和记录当前note的所有被批准花费的地址 approvedAddress
 
+        // 下面这个只有 mint 和 burn 的时候才会有
         if (publicValue < 0) {
+
+            // 转换token event, 发生 mint的时候
             emit ConvertTokens(publicOwner, uint256(-publicValue));
         }
         if (publicValue > 0) {
+
+            // 赎回token event, 发生 burn的时候
             emit RedeemTokens(publicOwner, uint256(publicValue));
         }
     }
@@ -659,6 +695,13 @@ contract ZkAssetBase is IZkAsset, IAZTEC, LibEIP712 {
     * @param noteHash - hash of a note, used as a unique identifier for the note
     * @param metaData - metadata to update the note with
     */
+
+    // todo 更新存储中已存在的 note的 metadata
+    //
+    // noteHash: note的Hash
+    // metaData: 新的note的metadata
+    //
+    // TODO ##############################################    我擦, 这操作不严谨吧?? 或者说会在 添加授权addr时,做的事??
     function updateNoteMetaData(bytes32 noteHash, bytes memory metaData) public {
         // Get the note from this assets registry
         ( uint8 status, , , address noteOwner ) = ace.getNote(address(this), noteHash);

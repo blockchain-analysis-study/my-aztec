@@ -116,8 +116,14 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     uint8 public defaultCryptoSystem = 1; // 默认密码系统标识符
 
 
+    // TODO ####################### 很重要 的一个东西 #######################
+    //
     // 这里面记录的是, 做过 校验的proofHash的标识
-    // ACE 的 validateProof()函数 和 clearProofByHashes()函数 有用
+    // TODO ####### 只有proof校验通过的 proofOutput 才可以被花费. proofHash = keccak256(proofOutput)
+    //
+    // TODO ACE 的 validateProof()函数 放值
+    // TODO ACE 的 clearProofByHashes()函数 清值
+    // TODO NoteRegistryManager 的 updateNoteRegistry()函数 清值
     //
     // key是由 keccak256(abi.encode(proofHash, _proof, msg.sender))
     // value: bool
@@ -631,7 +637,7 @@ contract NoteRegistryManager is IAZTEC, Ownable {
     function updateNoteRegistry(
         uint24 _proof,
         bytes memory _proofOutput,
-        address _proofSender
+        address _proofSender // todo confidentialTransfer()时传的是 ZKAsset合约, confidentialTransferFrom()时传的是 某个账户地址
     ) public {
 
         // 因为 不改变 registry 本身数据 而只是需要用 registry 中的某些变量
@@ -644,12 +650,12 @@ contract NoteRegistryManager is IAZTEC, Ownable {
         bytes32 proofHash = keccak256(_proofOutput);
 
         // 算出 validatedProofHash
-        bytes32 validatedProofHash = keccak256(abi.encode(proofHash, _proof, msg.sender));
+        bytes32 validatedProofHash = keccak256(abi.encode(proofHash, _proof, msg.sender)); // todo 这里的 msg.sender 基本是 ZKAsset 合约
 
         require(
             // 表示是否已验证相应的AZTEC证明的布尔值, 在ACE中得到实现
             // 调用ACE中的 validateProofByHash()函数
-            validateProofByHash(_proof, proofHash, _proofSender) == true,
+            validateProofByHash(_proof, proofHash, _proofSender) == true, // todo 这里如果是 confidentialTransfer()传过来的是 ZKAsset合约, confidentialTransferFrom() 过来的是 某个账户
             "ACE has not validated a matching proof"
         );
         // clear record of valid proof - stops re-entrancy attacks and saves some gas
