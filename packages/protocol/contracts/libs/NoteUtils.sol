@@ -117,6 +117,14 @@ library NoteUtils {
             // 0x60 - 0x80 : publicOwner
             // 0x80 - 0xa0 : publicValue
             // 0xa0 - 0xc0 : challenge
+            //
+            // `proofOutput` 的内存内容存放详细说明：  (0x20 就是用来表示 32byte, 当数值 x <= 32byte时， 表示 十六进制的值 为 x <= 0x20)
+            // 0x00 - 0x20 : proofOutput 的字节长度
+            // 0x20 - 0x40 : inputNotes 的相对偏移量
+            // 0x40 - 0x60 : 相对于 outputNotes 的偏移量
+            // 0x60 - 0x80 : publicOwner
+            // 0x80 - 0xa0 : publicValue
+            // 0xa0 - 0xc0 : 挑战 challenge
             inputNotes := add(_proofOutput, mload(add(_proofOutput, 0x20)))
             outputNotes := add(_proofOutput, mload(add(_proofOutput, 0x40)))
             publicOwner := and(
@@ -139,7 +147,7 @@ library NoteUtils {
         bytes32 challenge
     ) {
         assembly {
-            challenge := mload(add(_proofOutput, 0xa0))
+            challenge := mload(add(_proofOutput, 0xa0))  // 0xa0 - 0xc0 : 挑战 challenge
         }
     }
 
@@ -166,11 +174,17 @@ library NoteUtils {
     ) {
         assembly {
             // memory map of a note:
-            // 0x00 - 0x20 : byte length of note // note数据的总长度为, [0x00 - 0x20)
-            // 0x20 - 0x40 : note type // note 类型, 存放索引为, [0x20 - 0x40)
-            // 0x40 - 0x60 : owner // owner 的存放索引为, [0x40 - 0x60)
-            // 0x60 - 0x80 : noteHash // note的Hash 存放索引为, [0x60 - 0x80)
-            // 0x80 - 0xa0 : start of metadata byte array // 其他 note 的元数据 存放索引为, [0x80 - 0xa0)
+            // 0x00 - 0x20 : byte length of note
+            // 0x20 - 0x40 : note type
+            // 0x40 - 0x60 : owner
+            // 0x60 - 0x80 : noteHash
+            // 0x80 - 0xa0 : start of metadata byte array
+            //
+            // note数据的总长度为, [0x00 - 0x20)
+            // note 类型, 存放索引为, [0x20 - 0x40)
+            // owner 的存放索引为, [0x40 - 0x60)
+            // note的Hash 存放索引为, [0x60 - 0x80)
+            // 其他 note 的元数据 存放索引为, [0x80 - 0xa0)
             owner := and(
                 mload(add(_note, 0x40)),
                 0xffffffffffffffffffffffffffffffffffffffff
