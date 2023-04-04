@@ -216,19 +216,29 @@ contract NoteRegistryManager is IAZTEC, Ownable {
 
             // =====================================================================================================================
             // 
-            // 要计算 factoryAddress[epoch][cryptoSystem][assetType] 的存储密钥，请执行以下操作
+            // 要计算 factoryAddress[epoch][cryptoSystem][assetType] 的key值 (为了查 value)，请执行以下操作
             // 1.获取factoryAddress插槽
             // 2.将 (epoch * 0x10000) 添加到插槽
             // 3.将 (cryptoSystem * 0x100) 添加到插槽
             // 4.将 (assetType) 添加到插槽
-            // 即分配给factoryAddress的存储指针范围为
-            // factoryAddress_slot 到 (0xffff * 0x10000 + 0xff * 0x100 + 0xff = factoryAddress_slot 0xffffffff)
-            
-            // 方便地，我们必须在epoch, cryptoSystem 和 assetType 上执行的乘法对应于它们在_factoryId中的字节位置
+            // 即分配给factoryAddress的存储指针范围为:
+            // 
+            // ###############################################################################################################
+            // ######                                                                                                   ######
+            // ###### factoryAddress_slot 为 factories_slot 插槽的 _factoryId 偏移量处：                                  ######
+            // ###### (0xffff * 0x10000 + 0xff * 0x100 + 0xff => factoryAddress_slot 0xffffffff)                        ######
+            // ######                                                                                                   ######
+            // ###############################################################################################################
             //
-            // 例如. (epoch * 0x10000) = and(_factoryId, 0xff0000)
-            // and  (cryptoSystem * 0x100) = and(_factoryId, 0xff00)
-            // and  (assetType) = and(_factoryId, 0xff)
+            // 从'_factoryId'开始的存储槽偏移是......
+            // (_factoryId & 0xffff0000) + (_factoryId & 0xff00) + (_factoryId & 0xff)
+            // 也就是说，存储槽的偏移量是_factoryId的值
+
+            // 方便地，我们必须在 epoch, cryptoSystem 和 assetType 上执行的乘法对应于它们在 _factoryId 中的字节位置
+            //
+            // 例如. (epoch * 0x10000) == and(_factoryId, 0xff0000)
+            // and  (cryptoSystem * 0x100) == and(_factoryId, 0xff00)
+            // and  (assetType) == and(_factoryId, 0xff)
             
             // 全部放在一起。 相对于'_factoryId'的存储插槽偏移为...
             // (_factoryId & 0xffff0000) + (_factoryId & 0xff00) + (_factoryId & 0xff)
@@ -236,6 +246,10 @@ contract NoteRegistryManager is IAZTEC, Ownable {
 
             // 是由 setFactory() 方法置入的
             // 
+            // ##### soidity 特定语法[为了获取变量 x 所使用的存储槽，你可以使用 x_slot ，并用的 x_offset 获取其字节偏移量]
+            // factories_slot 为 factories 的存储插槽
+            //
+            // 在 solidity v0.7.0 后变更为： 偏移量通过 x.slot 和 x.offset 访。
             factoryAddress := sload(add(_factoryId, factories_slot))
 
             // factoryAddress 是否为空, 0: 非空, 1: 为空

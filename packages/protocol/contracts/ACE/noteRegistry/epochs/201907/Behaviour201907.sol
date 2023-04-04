@@ -195,7 +195,10 @@ contract Behaviour201907 is NoteRegistryBehaviour {
     }
 
     // todo 更新 note注册表中的某些note??
-    // 单个 proofOutput 中包含一组 input notes 和 output notes
+    // 
+    // ##############################################################
+    // ### 单个 proofOutput 中包含一组 input notes 和 output notes ###
+    // ##############################################################
     //
     // 根据已成功 验证的输出 (_proofOutput) ，执行所需的状态修改.
     // 
